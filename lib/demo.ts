@@ -1,7 +1,7 @@
 import "server-only";
 import { timezone } from "@/config/bells";
 import { fromZoned, zonedParts } from "./time";
-import type { Course, Snapshot, Task, TaskType, Priority } from "./types";
+import { statusGroupOf, type Course, type NewTask, type Snapshot, type Task, type TaskPatch, type TaskType, type Priority } from "./types";
 
 // Fixture data for demo mode (DIAL_DEMO=1). Dates are generated relative to
 // "now" so every state (overdue, today, later, done this week) is always
@@ -100,12 +100,88 @@ function build(now: Date, scenario: string | null): Task[] {
   });
 }
 
+// In-memory store per scenario, so demo writes persist until the server restarts.
+const stores = new Map<string, { tasks: Task[]; trashed: Set<string> }>();
+function store(scenario: string | null) {
+  const key = scenario ?? "default";
+  let st = stores.get(key);
+  if (!st) {
+    st = { tasks: scenario === "empty" ? [] : build(new Date(), scenario), trashed: new Set() };
+    stores.set(key, st);
+  }
+  return st;
+}
+
 export function demoSnapshot(scenario: string | null = null, now = new Date()): Snapshot {
+  const st = store(scenario);
   return {
     user: { name: "Demo student", image: null, workspace: "Demo workspace" },
     courses: COURSES,
-    tasks: scenario === "empty" ? [] : build(now, scenario),
+    tasks: st.tasks.filter((t) => !st.trashed.has(t.id)),
     fetchedAt: now.toISOString(),
     demo: true,
   };
 }
+
+const latency = () => new Promise((r) => setTimeout(r, 250 + Math.random() * 250));
+
+function applyPatch(t: Task, patch: TaskPatch): Task {
+  const next = { ...t, lastEdited: new Date().toISOString() };
+  if (patch.title !== undefined) next.title = patch.title;
+  if (patch.due !== undefined) next.due = patch.due;
+  if (patch.status !== undefined) {
+    next.status = patch.status;
+    next.statusGroup = statusGroupOf(patch.status);
+  }
+  if (patch.type !== undefined) next.type = patch.type;
+  if (patch.minutes !== undefined) next.minutes = patch.minutes;
+  if (patch.priority !== undefined) next.priority = patch.priority;
+  if (patch.courseId !== undefined) next.courseIds = patch.courseId ? [patch.courseId] : [];
+  return next;
+}
+
+/** Demo writes. A title containing "[fail]" fails, to exercise rollback. */
+export const demoWrites = {
+  async create(input: NewTask): Promise<Task> {
+    await latency();
+    if (input.title.includes("[fail]")) throw new Error("Demo failure (title contains [fail])");
+    const task: Task = applyPatch(
+      {
+        id: `t-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+        url: "#",
+        title: "",
+        courseIds: [],
+        due: null,
+        status: "Not started",
+        statusGroup: "todo",
+        type: null,
+        minutes: null,
+        priority: "Medium",
+        scheduledFor: null,
+        calendarEvent: null,
+        source: "Me",
+        lastEdited: "",
+      },
+      { ...input, priority: input.priority ?? "Medium" },
+    );
+    for (const st of stores.values()) st.tasks.push(task);
+    if (!stores.size) store(null).tasks.push(task);
+    return task;
+  },
+  async update(id: string, patch: TaskPatch): Promise<Task> {
+    await latency();
+    let out: Task | null = null;
+    for (const st of stores.values()) {
+      st.tasks = st.tasks.map((t) => (t.id === id ? (out = applyPatch(t, patch)) : t));
+    }
+    if (!out) throw new Error("Task not found");
+    return out;
+  },
+  async trash(id: string, trash: boolean): Promise<void> {
+    await latency();
+    for (const st of stores.values()) {
+      if (trash) st.trashed.add(id);
+      else st.trashed.delete(id);
+    }
+  },
+};

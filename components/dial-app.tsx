@@ -1,297 +1,418 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion, MotionConfig } from "motion/react";
-import { ChevronRight, LogOut, TriangleAlert, WifiOff } from "lucide-react";
-import { Mark, Wordmark } from "./logo";
-import { TaskRow } from "./task-row";
-import { ProgressRing } from "./progress-ring";
-import { useSnapshot, clearSnapshotCache, type SyncState } from "@/lib/client/use-snapshot";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { AnimatePresence, motion, MotionConfig, useReducedMotion } from "motion/react";
+import { Header, Kbd } from "./header";
+import { Wheel, type CardStats } from "./wheel";
+import { ClassPanel } from "./class-panel";
+import { Tonight } from "./tonight";
+import { AddBar, type AddBarHandle } from "./add-bar";
+import { EditSheet } from "./edit-sheet";
+import { SearchSheet } from "./search-sheet";
+import { ToastProvider, useToasts } from "./toasts";
+import { useSnapshot } from "@/lib/client/use-snapshot";
+import { useClock } from "@/lib/client/clock";
+import { TaskStore, type ClientTask } from "@/lib/client/task-store";
 import { accentStyle } from "@/lib/colors";
+import { bellConfig } from "@/lib/bells";
+import { focusCourse, isTonight, nowState } from "@/lib/now";
 import { orderCourses } from "@/lib/schedule";
-import { courseStats, groupTasks } from "@/lib/tasks";
+import { courseStats } from "@/lib/tasks";
 import { startOfWeek } from "@/lib/time";
 import { timezone } from "@/config/bells";
-import { fade, spring } from "@/lib/motion";
-import { signOutAction } from "@/app/actions";
-import type { Course, Snapshot, Task } from "@/lib/types";
+import { fade, easeOut } from "@/lib/motion";
+import type { NewTask, TaskPatch } from "@/lib/types";
+import type { RowActions } from "./task-row";
 
-function useNow(intervalMs = 30_000) {
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setNow(new Date());
-    const id = setInterval(() => setNow(new Date()), intervalMs);
-    return () => clearInterval(id);
-  }, [intervalMs]);
-  return now;
+const EMPTY: ClientTask[] = [];
+const noopSubscribe = () => () => {};
+
+function useMediaQuery(q: string) {
+  return useSyncExternalStore(
+    (cb) => {
+      const m = window.matchMedia(q);
+      m.addEventListener("change", cb);
+      return () => m.removeEventListener("change", cb);
+    },
+    () => window.matchMedia(q).matches,
+    () => false,
+  );
 }
 
 export function DialApp() {
-  const { data, sync, reload } = useSnapshot();
-  const now = useNow();
-  const ready = data && now;
-
+  const desktop = useMediaQuery("(min-width: 768px)");
   return (
     <MotionConfig reducedMotion="user">
-      <div className="min-h-dvh">
-        <Header data={data} sync={sync} onRetry={reload} />
-        <main className="mx-auto w-full max-w-[640px] px-4 pb-[calc(var(--safe-bottom)+48px)] md:px-6">
-          <AnimatePresence mode="popLayout" initial={false}>
-            {ready ? (
-              <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={fade}>
-                <Overview data={data} now={now} />
-              </motion.div>
-            ) : (
-              <motion.div key="skeleton" exit={{ opacity: 0 }} transition={fade}>
-                <OverviewSkeleton />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </main>
-      </div>
+      <ToastProvider bottomOffset={desktop ? 24 : 88}>
+        <Dial desktop={desktop} />
+      </ToastProvider>
     </MotionConfig>
   );
 }
 
-function Header({ data, sync, onRetry }: { data: Snapshot | null; sync: SyncState; onRetry: () => void }) {
-  return (
-    <header className="glass sticky top-0 z-20 border-b border-hairline pt-[var(--safe-top)]">
-      <div className="mx-auto flex h-14 w-full max-w-[640px] items-center gap-3 px-4 md:px-6">
-        <a href="/app" className="pressable -ml-1 flex items-center gap-2 rounded-md p-1 text-gray-1000" aria-label="Dial home">
-          <Mark size={20} />
-          <Wordmark height={16} className="-ml-0.5" />
-        </a>
-        {data?.demo && <span className="rounded-full border border-hairline px-2 py-0.5 text-label text-gray-900">Demo data</span>}
-        <div className="ml-auto flex items-center gap-1">
-          <SyncBadge sync={sync} onRetry={onRetry} />
-          <AccountMenu data={data} />
-        </div>
-      </div>
-    </header>
-  );
-}
+function Dial({ desktop }: { desktop: boolean }) {
+  const { data, sync, reload } = useSnapshot();
+  const now = useClock();
+  const toasts = useToasts();
+  const reduced = useReducedMotion();
 
-function SyncBadge({ sync, onRetry }: { sync: SyncState; onRetry: () => void }) {
-  return (
-    <AnimatePresence initial={false}>
-      {sync.kind === "offline" && (
-        <motion.span
-          key="offline"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.9 }}
-          transition={spring.ui}
-          className="flex h-7 items-center gap-1.5 rounded-full border border-hairline px-2.5 text-label text-gray-900"
-          role="status"
-        >
-          <WifiOff size={12} strokeWidth={1.5} /> Offline
-        </motion.span>
-      )}
-      {sync.kind === "error" && (
-        <motion.button
-          key="error"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.9 }}
-          transition={spring.ui}
-          onClick={onRetry}
-          title={sync.message}
-          className="pressable flex h-7 items-center gap-1.5 rounded-full border border-hairline px-2.5 text-label text-gray-1000 hover:bg-gray-100"
-        >
-          <TriangleAlert size={12} strokeWidth={1.5} className="text-red" /> Notion error · Retry
-        </motion.button>
-      )}
-    </AnimatePresence>
-  );
-}
+  // ── Optimistic store ────────────────────────────────────────────────
+  const [store, setStore] = useState<TaskStore | null>(null);
+  useEffect(() => {
+    // Created after mount: it reads the offline queue from localStorage.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setStore(new TaskStore());
+  }, []);
+  const tasks = useSyncExternalStore(store?.subscribe ?? noopSubscribe, store?.getSnapshot ?? (() => EMPTY), () => EMPTY);
+  const queued = useSyncExternalStore(store?.subscribe ?? noopSubscribe, () => store?.queuedCount ?? 0, () => 0);
+  useEffect(() => {
+    if (store && data) store.setServer(data.tasks, data.requestedAt);
+  }, [store, data]);
+  const reloadSoon = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => {
+    if (!store) return;
+    store.setEvents({
+      onError: (message, retry) => toasts.push({ message: `Couldn't save: ${message}`, tone: "error", action: { label: "Retry", run: retry }, duration: 8000 }),
+      onReauth: () => window.location.replace("/auth/expired"),
+      onSynced: () => {
+        clearTimeout(reloadSoon.current);
+        reloadSoon.current = setTimeout(() => void reload(), 1500);
+      },
+    });
+    const online = () => store.flush();
+    window.addEventListener("online", online);
+    if (navigator.onLine && store.queuedCount) store.flush();
+    return () => window.removeEventListener("online", online);
+  }, [store, toasts, reload]);
 
-function AccountMenu({ data }: { data: Snapshot | null }) {
-  const [open, setOpen] = useState(false);
-  const initial = (data?.user.name ?? "?").trim().charAt(0).toUpperCase();
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        aria-label="Account"
-        className="pressable flex size-11 items-center justify-center rounded-full hover:bg-gray-100"
-      >
-        {data?.user.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={data.user.image} alt="" className="size-7 rounded-full border border-hairline" />
-        ) : (
-          <span className="flex size-7 items-center justify-center rounded-full border border-hairline bg-gray-200 text-label font-medium text-gray-1000">
-            {initial}
-          </span>
-        )}
-      </button>
-      <AnimatePresence>
-        {open && (
-          <>
-            <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden="true" />
-            <motion.div
-              role="menu"
-              initial={{ opacity: 0, scale: 0.96, y: -4 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: -4 }}
-              transition={spring.ui}
-              style={{ transformOrigin: "top right" }}
-              className="glass absolute right-0 top-12 z-20 w-56 overflow-hidden rounded-sheet border border-hairline p-1"
-            >
-              <div className="px-3 py-2">
-                <p className="truncate text-body text-gray-1000">{data?.user.name ?? "Signed in"}</p>
-                <p className="truncate text-small text-gray-900">{data?.user.workspace ?? "Notion"}</p>
-              </div>
-              <form action={signOutAction} onSubmit={clearSnapshotCache}>
-                <button role="menuitem" className="pressable flex h-11 w-full items-center gap-2 rounded-card px-3 text-body text-gray-1000 hover:bg-gray-100">
-                  <LogOut size={16} strokeWidth={1.5} /> Sign out
-                </button>
-              </form>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
+  // ── Classes, stats and "now" ────────────────────────────────────────
+  const courses = useMemo(() => (data ? orderCourses(data.courses) : []), [data]);
+  const courseById = useMemo(() => new Map(courses.map((c) => [c.id, c])), [courses]);
+  const courseByName = useMemo(() => new Map(courses.map((c) => [c.name, c])), [courses]);
+  const state = useMemo(() => (now ? nowState(now, bellConfig) : null), [now]);
+  const nowName = state ? focusCourse(state) : null;
+  const nowIdx = nowName ? courses.findIndex((c) => c.name === nowName) : -1;
+  const nowIndex = nowIdx >= 0 ? nowIdx : null;
 
-function Overview({ data, now }: { data: Snapshot; now: Date }) {
-  const courses = useMemo(() => orderCourses(data.courses), [data.courses]);
-  const weekStart = startOfWeek(now, timezone);
-  const weekEnd = new Date(weekStart.getTime() + 7 * 86_400_000);
+  const dayKey = now?.toDateString();
+  const stats = useMemo(() => {
+    const m = new Map<string, CardStats>();
+    if (!now) return m;
+    const ws = startOfWeek(now, timezone);
+    const we = new Date(ws.getTime() + 7 * 86_400_000);
+    for (const c of courses) m.set(c.id, courseStats(tasks, c.id, ws, we));
+    return m;
+    // Recompute on task changes and once a day, not on every clock tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courses, tasks, dayKey]);
 
-  if (courses.length === 0) {
-    return (
-      <div className="flex flex-col items-center py-24 text-center">
-        <h2 className="text-heading font-semibold text-gray-1000">No enrolled classes</h2>
-        <p className="mt-2 max-w-[320px] text-body text-gray-900">Tick &ldquo;Currently enrolled&rdquo; on your classes in Notion and they&rsquo;ll show up here.</p>
-      </div>
-    );
+  // ── Selection ───────────────────────────────────────────────────────
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [dir, setDir] = useState(1);
+  const selectedIndex = Math.max(0, courses.findIndex((c) => c.id === selectedId));
+  const selected = courses[selectedIndex] ?? null;
+
+  // Open on the class happening now (or the first class).
+  if (!selectedId && courses.length && state) {
+    setSelectedId(nowIndex !== null ? courses[nowIndex].id : courses[0].id);
   }
 
+  // When a period ends with the app open, roll to the next class, unless
+  // you'd wandered off to look at a different one.
+  const prevNow = useRef<string | null>(null);
+  useEffect(() => {
+    if (!nowName) {
+      prevNow.current = null;
+      return;
+    }
+    if (prevNow.current && prevNow.current !== nowName) {
+      const prev = courseByName.get(prevNow.current);
+      const next = courseByName.get(nowName);
+      if (next && (!prev || selectedId === prev.id)) {
+         
+        setDir(1);
+        setSelectedId(next.id);
+      }
+    }
+    prevNow.current = nowName;
+  }, [nowName, courseByName, selectedId]);
+
+  const selectIndex = useCallback(
+    (i: number, d: 1 | -1) => {
+      const c = courses[((i % courses.length) + courses.length) % courses.length];
+      if (!c) return;
+      setDir(d);
+      setSelectedId(c.id);
+    },
+    [courses],
+  );
+  const jumpNow = useCallback(() => {
+    if (nowIndex === null) return;
+    setDir(nowIndex > selectedIndex ? 1 : -1);
+    setSelectedId(courses[nowIndex].id);
+  }, [nowIndex, selectedIndex, courses]);
+
+  // ── Page title: "Pre-Calc · 22m · Dial" ─────────────────────────────
+  useEffect(() => {
+    if (!state || !now) return;
+    let title = "Dial";
+    if (state.kind === "in_class") title = `${state.course} · ${Math.ceil((state.period.endsAt.getTime() - now.getTime()) / 60000)}m · Dial`;
+    else if (state.kind === "passing") title = `Next: ${state.next.course} · ${Math.ceil((state.next.startsAt.getTime() - now.getTime()) / 60000)}m · Dial`;
+    else if (state.kind === "after_school") title = "Tonight · Dial";
+    else if (state.kind === "weekend") title = "Weekend · Dial";
+    if (document.title !== title) document.title = title;
+  }, [state, now]);
+
+  // ── Sheets ──────────────────────────────────────────────────────────
+  const [editing, setEditing] = useState<{ key: string; focus?: "due" } | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const editingTask = editing ? (tasks.find((t) => t.key === editing.key) ?? null) : null;
+  const sheetOpen = !!editingTask || searchOpen;
+  const addBar = useRef<AddBarHandle>(null);
+
+  // ── Actions (all optimistic) ────────────────────────────────────────
+  const actions: RowActions = useMemo(
+    () => ({
+      onComplete: (t) => {
+        if (!store) return;
+        const prev = t.status;
+        store.update(t.key, { status: "Submitted" });
+        toasts.push({ message: `Completed “${t.title}”`, action: { label: "Undo", run: () => store.update(t.key, { status: prev as TaskPatch["status"] }) } });
+      },
+      onReopen: (t) => store?.update(t.key, { status: "Not started" }),
+      onStatus: (t, status) => {
+        if (!store) return;
+        const prev = t.status;
+        store.update(t.key, { status });
+        toasts.push({
+          message: status === "In progress" ? "Marked in progress" : "Marked need to submit",
+          action: { label: "Undo", run: () => store.update(t.key, { status: prev as TaskPatch["status"] }) },
+        });
+      },
+      onDelete: (t) => {
+        if (!store) return;
+        store.trash(t.key);
+        toasts.push({ message: `Deleted “${t.title}”`, action: { label: "Undo", run: () => store.restore(t) } });
+      },
+      onOpen: (t, focus) => setEditing({ key: t.key, focus }),
+    }),
+    [store, toasts],
+  );
+
+  const onAdd = useCallback(
+    (input: NewTask) => {
+      if (!store) return;
+      store.create(input);
+      if (input.courseId !== selectedId) {
+        const c = courseById.get(input.courseId);
+        toasts.push({
+          message: `Added to ${c?.name ?? "another class"}`,
+          action: {
+            label: "View",
+            run: () => {
+              setDir(1);
+              setSelectedId(input.courseId);
+            },
+          },
+          duration: 3500,
+        });
+      }
+    },
+    [store, selectedId, courseById, toasts],
+  );
+
+  // ── Keyboard shortcuts: n, ←/→, ., / ───────────────────────────────
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey || sheetOpen) return;
+      const el = e.target as HTMLElement;
+      if (el.closest("input, textarea, select, [contenteditable=true], [role=listbox]")) return;
+      if (e.key === "n") {
+        e.preventDefault();
+        addBar.current?.focus();
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        selectIndex(selectedIndex + 1, 1);
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        selectIndex(selectedIndex - 1, -1);
+      } else if (e.key === ".") {
+        e.preventDefault();
+        jumpNow();
+      } else if (e.key === "/") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sheetOpen, selectIndex, selectedIndex, jumpNow]);
+
+  const ready = !!(data && now && state && store);
+
+  // Desktop: the cursor waits in the add bar as soon as the app is ready.
+  const focusedOnce = useRef(false);
+  useEffect(() => {
+    if (desktop && ready && !focusedOnce.current) {
+      focusedOnce.current = true;
+      setTimeout(() => addBar.current?.focus(), 80);
+    }
+  }, [desktop, ready]);
+
+  const tonight = state ? isTonight(state) : false;
+
   return (
-    <div className="pt-6">
-      <p className="px-3 text-label uppercase tracking-[0.04em] text-gray-900">
-        {courses.length} classes · {data.tasks.filter((t) => t.statusGroup !== "complete").length} open
-      </p>
-      <div className="mt-2 flex flex-col gap-2">
-        {courses.map((c) => (
-          <CourseSection key={c.id} course={c} tasks={data.tasks} now={now} stats={courseStats(data.tasks, c.id, weekStart, weekEnd)} />
-        ))}
-      </div>
-    </div>
+    <>
+      <motion.div
+        className="fixed inset-0 overflow-y-auto overflow-x-hidden bg-bg"
+        style={{ ...accentStyle(selected?.color), transformOrigin: "50% 0%" }}
+        animate={reduced ? undefined : { scale: sheetOpen ? 0.96 : 1, borderRadius: sheetOpen ? 12 : 0 }}
+        transition={{ type: "spring", stiffness: 400, damping: 36 }}
+      >
+        <Header
+          state={state}
+          now={now}
+          courseByName={courseByName}
+          data={data}
+          sync={sync}
+          queued={queued}
+          onRetry={() => void reload()}
+          onSearch={() => setSearchOpen(true)}
+          onNow={jumpNow}
+        />
+
+        <main className="mx-auto w-full max-w-[640px] px-4 pb-[calc(var(--safe-bottom)+112px)] md:px-6 md:pb-16">
+          <AnimatePresence mode="popLayout" initial={false}>
+            {!ready ? (
+              <motion.div key="skeleton" exit={{ opacity: 0 }} transition={fade}>
+                <AppSkeleton />
+              </motion.div>
+            ) : courses.length === 0 ? (
+              <motion.div key="no-classes" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={fade} className="flex flex-col items-center py-24 text-center">
+                <h2 className="text-heading font-semibold text-gray-1000">No enrolled classes</h2>
+                <p className="mt-2 max-w-[320px] text-body text-gray-900">Tick &ldquo;Currently enrolled&rdquo; on your classes in Notion and they&rsquo;ll appear on the wheel.</p>
+              </motion.div>
+            ) : (
+              <motion.div key="app" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={fade}>
+                {tonight && <Tonight state={state!} tasks={tasks} courses={courseById} now={now!} actions={actions} />}
+
+                {tonight && <p className="px-3 pb-1 pt-8 text-label uppercase tracking-[0.04em] text-gray-900">Classes</p>}
+                <div className={tonight ? "pt-1" : "pt-4"}>
+                  <Wheel courses={courses} stats={stats} selected={selectedIndex} onSelect={selectIndex} nowIndex={nowIndex} now={now!} compact={!desktop} />
+                </div>
+
+                {desktop && (
+                  <div className="mt-4">
+                    <AddBar ref={addBar} course={selected} courses={courses} now={now!} floating={false} onAdd={onAdd} />
+                  </div>
+                )}
+
+                <div className="relative mt-2">
+                  <AnimatePresence mode="popLayout" initial={false} custom={dir}>
+                    {selected && (
+                      <motion.div
+                        key={selected.id}
+                        custom={dir}
+                        variants={{
+                          enter: { opacity: 0 },
+                          center: { opacity: 1 },
+                          exit: (d: number) => ({ opacity: 0, x: reduced ? 0 : -12 * d }),
+                        }}
+                        initial="enter"
+                        animate="center"
+                        exit="exit"
+                        transition={{ duration: 0.18, ease: easeOut }}
+                      >
+                        <ClassPanel course={selected} tasks={tasks} now={now!} actions={actions} dir={dir} onAddFirst={() => addBar.current?.focus()} />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {desktop && (
+                  <p className="mt-8 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-label text-gray-900">
+                    <span>
+                      <Kbd>n</Kbd> new task
+                    </span>
+                    <span>
+                      <Kbd>←</Kbd>
+                      <Kbd>→</Kbd> spin
+                    </span>
+                    <span>
+                      <Kbd>.</Kbd> now
+                    </span>
+                    <span>
+                      <Kbd>/</Kbd> search
+                    </span>
+                  </p>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </main>
+
+        {!desktop && ready && courses.length > 0 && <AddBar ref={addBar} course={selected} courses={courses} now={now!} floating onAdd={onAdd} />}
+      </motion.div>
+
+      {now && (
+        <>
+          <EditSheet
+            task={editingTask}
+            course={editingTask ? (courseById.get(editingTask.courseIds[0]) ?? null) : null}
+            focus={editing?.focus}
+            now={now}
+            onClose={() => setEditing(null)}
+            onSave={(t, patch) => store?.update(t.key, patch)}
+            onDelete={actions.onDelete}
+          />
+          <SearchSheet
+            open={searchOpen}
+            onClose={() => setSearchOpen(false)}
+            tasks={tasks}
+            courses={courseById}
+            now={now}
+            onPick={(t) => {
+              setSearchOpen(false);
+              const c = t.courseIds.find((id) => courseById.has(id));
+              if (c) {
+                setDir(1);
+                setSelectedId(c);
+              }
+              setTimeout(() => setEditing({ key: t.key }), 260);
+            }}
+          />
+        </>
+      )}
+    </>
   );
 }
 
-function CourseSection({
-  course,
-  tasks,
-  now,
-  stats,
-}: {
-  course: Course;
-  tasks: Task[];
-  now: Date;
-  stats: ReturnType<typeof courseStats>;
-}) {
-  const g = groupTasks(tasks, course.id, now);
-  const [showDone, setShowDone] = useState(false);
-  const empty = g.soon.length + g.later.length === 0;
-
+/** Same geometry as the real screen: wheel card + neighbours, dots, rows. */
+function AppSkeleton() {
   return (
-    <section style={accentStyle(course.color)} className="border-t border-hairline pt-4 first:border-t-0" aria-labelledby={`c-${course.id}`}>
-      <div className="flex items-center gap-3 px-3">
-        <span className="size-2.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
-        <div className="min-w-0 flex-1">
-          <h2 id={`c-${course.id}`} className="truncate text-lead font-semibold tracking-[-0.01em] text-gray-1000">
-            {course.name}
-          </h2>
-          {course.instructor && <p className="truncate text-small text-gray-900">{course.instructor}</p>}
-        </div>
-        <span className="font-mono text-small tabular text-gray-900" aria-label={`${stats.open} open`}>
-          {stats.open}
-        </span>
-        <ProgressRing value={stats.progress} />
-      </div>
-
-      <div className="mt-2 pb-2">
-        {empty ? (
-          <p className="px-3 py-3 text-body text-gray-900">{g.done.length ? `Nothing due in ${course.name} 🎉` : "Nothing here yet."}</p>
-        ) : (
-          <>
-            <Group label="Due soon" tasks={g.soon} now={now} />
-            <Group label="Later" tasks={g.later} now={now} />
-          </>
-        )}
-        {g.done.length > 0 && (
-          <div>
-            <button
-              onClick={() => setShowDone((s) => !s)}
-              aria-expanded={showDone}
-              className="pressable flex h-11 items-center gap-1.5 rounded-card px-3 text-small text-gray-900 hover:text-gray-1000"
-            >
-              <motion.span animate={{ rotate: showDone ? 90 : 0 }} transition={spring.ui} className="flex">
-                <ChevronRight size={14} strokeWidth={1.5} />
-              </motion.span>
-              Done this week · <span className="font-mono tabular">{g.done.length}</span>
-            </button>
-            <AnimatePresence initial={false}>
-              {showDone && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={fade}>
-                  {g.done.map((t) => (
-                    <TaskRow key={t.id} task={t} now={now} />
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function Group({ label, tasks, now }: { label: string; tasks: Task[]; now: Date }) {
-  if (!tasks.length) return null;
-  return (
-    <div className="mt-1">
-      <h3 className="px-3 pb-1 pt-2 text-label uppercase tracking-[0.04em] text-gray-900">
-        {label} <span className="font-mono tabular text-gray-600">· {tasks.length}</span>
-      </h3>
-      {tasks.map((t) => (
-        <TaskRow key={t.id} task={t} now={now} />
-      ))}
-    </div>
-  );
-}
-
-function OverviewSkeleton() {
-  return (
-    <div className="pt-6" aria-busy="true" aria-label="Loading your classes">
-      <div className="skeleton mx-3 h-3 w-32" />
-      {[0, 1, 2].map((s) => (
-        <div key={s} className={`mt-2 pt-4 ${s ? "border-t border-hairline" : ""}`}>
-          <div className="flex items-center gap-3 px-3">
-            <div className="skeleton size-2.5 rounded-full" />
-            <div className="flex-1">
-              <div className="skeleton h-4" style={{ width: `${[38, 52, 30][s]}%` }} />
-              <div className="skeleton mt-1.5 h-3 w-20" />
-            </div>
-            <div className="skeleton size-5 rounded-full" />
-          </div>
-          {[0, 1].map((r) => (
-            <div key={r} className="flex min-h-14 items-start gap-3 px-3 py-3">
-              <div className="skeleton size-5 rounded-full" />
-              <div className="flex-1">
-                <div className="skeleton h-3.5" style={{ width: `${[64, 48, 56, 40, 70, 52][s * 2 + r]}%` }} />
-                <div className="skeleton mt-2 h-3 w-24" />
-              </div>
-            </div>
+    <div className="pt-4" aria-busy="true" aria-label="Loading your classes">
+      <div className="relative h-[232px] overflow-hidden md:h-[260px]">
+        <div className="skeleton absolute left-1/2 top-4 h-[168px] w-[248px] -translate-x-1/2 rounded-card md:h-[196px] md:w-[320px]" />
+        <div className="skeleton absolute left-1/2 top-4 h-[168px] w-[248px] -translate-x-[calc(50%+176px)] scale-[0.85] rounded-card opacity-50 md:h-[196px] md:w-[320px] md:-translate-x-[calc(50%+248px)]" />
+        <div className="skeleton absolute left-1/2 top-4 h-[168px] w-[248px] translate-x-[calc(-50%+176px)] scale-[0.85] rounded-card opacity-50 md:h-[196px] md:w-[320px] md:translate-x-[calc(-50%+248px)]" />
+        <div className="absolute inset-x-0 bottom-0 flex h-10 items-center justify-center gap-2.5">
+          {Array.from({ length: 7 }, (_, i) => (
+            <span key={i} className="skeleton size-1.5 rounded-full" />
           ))}
         </div>
-      ))}
+      </div>
+      <div className="mt-2">
+        <div className="skeleton mx-3 mb-2 mt-4 h-3 w-20" />
+        {[64, 48, 56, 40].map((w, i) => (
+          <div key={i} className="flex min-h-14 items-start gap-3 px-3 py-3">
+            <div className="skeleton size-5 shrink-0 rounded-full" />
+            <div className="flex-1">
+              <div className="skeleton h-3.5" style={{ width: `${w}%` }} />
+              <div className="skeleton mt-2 h-3 w-24" />
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -38,8 +38,10 @@ export function clearSnapshotCache() {
  * fresh data and swaps it in silently. Polls every 60s while the tab is
  * visible, and on focus/online. Auth failures leave the page.
  */
+export type LoadedSnapshot = Snapshot & { requestedAt?: number };
+
 export function useSnapshot() {
-  const [data, setData] = useState<Snapshot | null>(null);
+  const [data, setData] = useState<LoadedSnapshot | null>(null);
   const [sync, setSync] = useState<SyncState>({ kind: "loading" });
   const inFlight = useRef(false);
   const scenario = useRef<string | null>(null);
@@ -53,6 +55,7 @@ export function useSnapshot() {
     inFlight.current = true;
     try {
       const qs = scenario.current ? `?scenario=${encodeURIComponent(scenario.current)}` : "";
+      const requestedAt = Date.now();
       const res = await fetch(`/api/data${qs}`, { cache: "no-store" });
       if (res.status === 401) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
@@ -70,7 +73,7 @@ export function useSnapshot() {
         return;
       }
       const snap = (await res.json()) as Snapshot;
-      setData(snap);
+      setData({ ...snap, requestedAt });
       setSync({ kind: "idle" });
       if (!snap.demo) writeCache(snap);
     } catch {

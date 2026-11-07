@@ -61,3 +61,25 @@ export function statusGroupOf(status: string | null | undefined): StatusGroup {
   }
   return "todo";
 }
+
+/** Editable fields. "Scheduled For" and "Calendar Event" are deliberately absent. */
+export type TaskPatch = Partial<{
+  title: string;
+  due: NotionDate;
+  status: Status;
+  type: TaskType | null;
+  minutes: number | null;
+  priority: Priority | null;
+  courseId: string | null;
+}>;
+
+export type NewTask = {
+  title: string;
+  courseId: string;
+  due: NotionDate;
+  type: TaskType | null;
+  minutes: number | null;
+  priority: Priority | null;
+};
+
+export type WriteResult<T> = { ok: true; value: T } | { ok: false; message: string; reauth?: boolean };
