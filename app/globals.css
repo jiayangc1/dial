@@ -1,26 +1,185 @@
 @import "tailwindcss";
 
+/* ── Geist tokens. Dark is the hero; light is redefined below. ───────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+  --bg: #0a0a0a;
+  --bg-2: #000000;
+  --gray-100: #1a1a1a;
+  --gray-200: #1f1f1f;
+  --gray-300: #292929;
+  --gray-400: #2e2e2e;
+  --gray-500: #454545;
+  --gray-600: #6e6e6e;
+  --gray-900: #a1a1a1;
+  --gray-1000: #ededed;
+  --hairline: rgba(255, 255, 255, 0.08);
+  --hairline-strong: rgba(255, 255, 255, 0.14);
+  --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --glass: rgba(10, 10, 10, 0.72);
+  --red: #ff6166;
+  --skeleton: rgba(255, 255, 255, 0.06);
+  --skeleton-shine: rgba(255, 255, 255, 0.06);
+
+  /* Current-class accent. Set per class at runtime. Neutral by default. */
+  --accent: #a1a1a1;
+  --on-accent: #0a0a0a;
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    color-scheme: light;
+    --bg: #ffffff;
+    --bg-2: #fafafa;
+    --gray-100: #f2f2f2;
+    --gray-200: #f5f5f5;
+    --gray-300: #e6e6e6;
+    --gray-400: #ebebeb;
+    --gray-500: #c9c9c9;
+    --gray-600: #8f8f8f;
+    --gray-900: #666666;
+    --gray-1000: #171717;
+    --hairline: rgba(0, 0, 0, 0.08);
+    --hairline-strong: rgba(0, 0, 0, 0.14);
+    --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    --glass: rgba(255, 255, 255, 0.72);
+    --red: #d8001b;
+    --skeleton: rgba(0, 0, 0, 0.05);
+    --skeleton-shine: rgba(255, 255, 255, 0.6);
+    --accent: #666666;
+    --on-accent: #ffffff;
   }
 }
 
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-2: var(--bg-2);
+  --color-gray-100: var(--gray-100);
+  --color-gray-200: var(--gray-200);
+  --color-gray-300: var(--gray-300);
+  --color-gray-400: var(--gray-400);
+  --color-gray-500: var(--gray-500);
+  --color-gray-600: var(--gray-600);
+  --color-gray-900: var(--gray-900);
+  --color-gray-1000: var(--gray-1000);
+  --color-hairline: var(--hairline);
+  --color-hairline-strong: var(--hairline-strong);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-red: var(--red);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Type scale: 12 / 13 / 14 / 16 / 20 / 32 / 48 */
+  --text-label: 12px;
+  --text-label--line-height: 16px;
+  --text-small: 13px;
+  --text-small--line-height: 18px;
+  --text-body: 14px;
+  --text-body--line-height: 20px;
+  --text-lead: 16px;
+  --text-lead--line-height: 24px;
+  --text-heading: 20px;
+  --text-heading--line-height: 28px;
+  --text-title: 32px;
+  --text-title--line-height: 36px;
+  --text-display: 48px;
+  --text-display--line-height: 52px;
+
+  --radius-card: 8px;
+  --radius-sheet: 12px;
+  --ease-out: var(--ease-out);
+}
+
+/* ── Base ─────────────────────────────────────────────────────────────── */
+html {
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--gray-1000);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
+}
+::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+
+/* Pressed state for every control. */
+.pressable {
+  transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out), opacity 160ms var(--ease-out);
+}
+.pressable:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.surface {
+  background: var(--gray-200);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--inner-highlight);
+}
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+}
+
+/* Skeleton shimmer: transform-only. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--skeleton);
+  border-radius: 6px;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--skeleton-shine), transparent);
+  animation: shimmer 1.6s var(--ease-out) infinite;
+}
+@keyframes shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+  }
+  .pressable:active:not(:disabled) {
+    transform: none;
+  }
 }
