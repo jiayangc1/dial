@@ -4,38 +4,36 @@ Dial is opened dozens of times a day, for a few seconds at a time, often one-han
 
 ## 1. Layout
 
+> **Revision:** the original 3D class wheel was replaced by an entry box with a class dropdown. Picking a class is now one tap on a clear list instead of a spin, and the screen leads with the thing you open Dial to do: add a task.
+
 ### Phone (390 × 844, the primary target)
 
 ```
 ┌──────────────────────────────┐  safe-area top
-│ ◐ dial         Pre-Calc 22:14│  header, 56px. Mark left. Countdown right (Geist Mono 13)
-│ ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔░░░░░░░│  1px period progress bar, accent, full-bleed
-│                              │
-│      ╱▔▔▔╲  ┌────────┐  ╱▔▔▔╲ │  wheel, 220px tall
-│     │Chem│  │Pre-Calc│ │WHAP│ │  centre card 260×168, neighbours rotateY ±35°, scale .85
-│      ╲___╱  │Ms. Ruiz│  ╲___╱ │  soft radial accent tint behind it, 6%
-│             │ 4 open ◔│       │
-│             └────────┘        │
-│        ● ● ○ ● ● ● ●          │  position dots (8px), "Now" pill appears when off-now
-│ DUE SOON                    3 │  section label, 12 / gray-900, uppercase, +0.04em
-│ ○ Worksheet 2.4    Fri · 30m  │  task rows, 56px min, 14 body
-│ ○ Unit 3 test      Tue  📅    │
-│ LATER                       2 │
-│ ○ …                           │
-│ ▸ Done this week · 4          │
-│                              │
-│ ┌──────────────────────────┐ │  bottom third: add bar, frosted, 52px, 12px radius
-│ │ + Add to Pre-Calc…        │ │  (collapses to a 56px "+" FAB until tapped)
+│ ◐  Pre-Calc 22:14 left   ⌕ ◯ │  header, 56px. Countdown digits roll (Geist Mono)
+│ ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔░░░░░░░░░░░░│  2px period progress bar, accent; pulses in the last 5 min
+│ ┌──────────────────────────┐ │
+│ │ ● Pre-Calc ▾        Now  │ │  class dropdown, pre-filled with the class you're in now
+│ │──────────────────────────│ │
+│ │ [Fri ×] [30m ×] [Quiz ×] │ │  parsed chips, accent, pop in as you type
+│ │ ws 2.4 fri 30m quiz   (↑)│ │  quick-add input, 52px
 │ └──────────────────────────┘ │
-└──────────────────────────────┘  safe-area bottom
+│ DUE SOON · 3                 │  section label, 12 / gray-900, uppercase, +0.04em
+│ ○ Worksheet 2.4  Fri · 30m 📅│  task rows, 56px min, 14 body
+│ LATER · 2                    │
+│ ○ …                          │
+│ › Done this week · 4         │
+└──────────────────────────────┘
 ```
 
-- Wheel and list share one column. The **list container never moves** when the wheel changes, only its contents cross-fade.
-- Primary actions (add, complete, Now) live in the bottom 40% of the screen.
+- The dropdown lists every enrolled class in bell order: colour dot, name, teacher, open count, a **Now**/**Next** marker on the current class, and a check on the selected one. Arrow keys, Home/End, Enter, Esc and type-ahead all work.
+- When you've picked a different class, a quiet "Now: Chemistry" link sits on the right of the dropdown row and takes you back.
+- Before and after school, on weekends and on days off, the **Tonight** list (everything due in 48 hours) sits under the entry box, followed by the selected class.
+- The task list container never moves when the class changes; its contents cross-fade (old rows slide 12px out toward the direction of travel, new rows stagger in at 30ms each).
 
 ### Desktop (1440)
 
-Same single column, `max-width: 640px`, centred. The wheel gets more room (cards 320×200, 3 neighbours visible each side). The add bar is pinned under the wheel instead of at the bottom, and auto-focused. Keyboard hints (`n`, `←` `→`, `.`, `/`) show as `kbd` chips in the footer at 12px.
+Same single column at `max-width: 640px`, centred. The input is auto-focused. Keyboard hints (`n`, `←` `→`, `.`, `/`) sit in the footer at 12px.
 
 ## 2. Type scale (Geist Sans / Geist Mono)
 
@@ -67,7 +65,7 @@ Geist gray scale, defined as CSS variables and redefined for light mode. **Dark 
 | `hairline` | `rgba(255,255,255,.08)` | `rgba(0,0,0,.08)` | 1px borders |
 | `red` | `#ff6166` | `#d8001b` | overdue only |
 
-**Accent** is the current class's Google Calendar colour, set as `--accent` on the app root and tuned per theme so it passes 3:1 against the background as a UI colour. A matching `--on-accent` (black or white) keeps the checkmark readable. The accent appears in exactly five places: wheel-card glow, progress ring, checkbox fill, add-bar focus ring, and the 6% radial tint behind the wheel. A class with no colour gets neutral gray. The brand's Signal orange (`#FF5A1F`) is only used in the logo's "now" hole and on the signed-out screen.
+**Accent** is the current class's Google Calendar colour, set as `--accent` on the app root and tuned per theme so it passes 3:1 against the background as a UI colour. A matching `--on-accent` (black or white) keeps the checkmark readable. The accent appears in a few deliberate places: the class dot in the dropdown, the period progress bar, checkbox fill, swipe-to-complete fill, parsed chips, and the entry box's focus ring. A class with no colour gets neutral gray. The brand's Signal orange (`#FF5A1F`) is only used in the logo's "now" hole and on the signed-out screen.
 
 ## 4. Surfaces and depth
 
@@ -81,12 +79,12 @@ Geist gray scale, defined as CSS variables and redefined for light mode. **Dark 
 | What | How |
 |---|---|
 | UI elements | spring `{ stiffness: 400, damping: 32, mass: 0.8 }` |
-| Wheel | spring `{ stiffness: 260, damping: 26 }`, velocity-projected snap, rubber band 0.35 past ends when not looping |
+| Dropdown | scale 0.98 → 1 from the top-left with the UI spring; closes in 120ms |
 | Fades | 150–250ms, `cubic-bezier(.2,.8,.2,1)` — never linear |
 | Properties | `transform` and `opacity` only. The accent tint cross-fades by animating opacity of two stacked gradients |
 | Class change | old list −12px toward swipe + fade 150ms; new list from +12px, 30ms stagger per row |
 | Press | every control scales to 0.97 on press |
-| Reduced motion | keep fades, drop springs, 3D, particles, stagger |
+| Reduced motion | keep fades, drop springs, particles, confetti, stagger |
 
 ## 6. States
 
@@ -111,4 +109,4 @@ Each state has a designed screen, not a fallback:
 - WCAG AA text contrast in both themes (checked token by token above).
 - 44px minimum touch targets; rows are 56px.
 - Focus rings: 2px accent ring, 2px offset, shown on `:focus-visible` only.
-- Wheel is a `listbox` with `aria-activedescendant`; arrow keys move, the class name is announced via a polite live region.
+- The class dropdown is a `listbox` with `aria-activedescendant`, arrow keys, Home/End, Enter, Esc and type-ahead.

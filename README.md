@@ -65,6 +65,35 @@ npm run dev            # http://localhost:3000
 
 To try the app without Notion, set `DIAL_DEMO=1` in `.env.local`. Add `?scenario=heavy` (50 tasks) or `?scenario=empty` to `/app` for the stress states.
 
+## Using Dial
+
+The entry box opens on the class you're in right now (or the next one during a passing period). Pick a different class from the dropdown, or send a single task elsewhere with `@`.
+
+| Type | Becomes |
+|---|---|
+| `ws 2.4 fri 30m quiz` | "ws 2.4", due Friday, 30 min, Test / Quiz |
+| `essay due thu at 3pm` | "essay", due Thursday 3:00 PM |
+| `read ch 5 tmrw 45m` | due tomorrow, 45 min |
+| `lab report @chem nov 20` | filed under Chemistry, due Nov 20 |
+| `study 1h30 !` | 90 min, High priority (`!low`, `!med` also work) |
+| `chapter 4 #reading` | Type: Reading (`#quiz`, `#hw`, `#project`, `#study`) |
+
+Each parsed piece shows as a chip; tap × to put the text back in the title. A type word at the start of a title stays in it ("Unit 3 test" keeps its name but is typed as a Test / Quiz).
+
+- **Complete:** tap the circle, or swipe right. Undo for 5 seconds.
+- **Quick actions:** swipe left for In progress, Need to Submit, change due date, Delete (moves the page to Notion's trash).
+- **Edit:** tap a task. **Search:** `/` or the magnifier.
+- **Keyboard:** `n` new task, `←` `→` previous/next class, `.` back to now, `/` search.
+- **Offline:** changes queue with a "will sync" badge and go to Notion when you're back online. The installed app opens offline.
+
+## Tests
+
+```bash
+npm test   # node:test — "now" logic (periods, passing, before/after school, weekends, overrides, A/B days) and the quick-add parser
+```
+
+To preview any time of day in the UI, add `?now=2026-11-09T08:45` (school-local time) to `/app`.
+
 ## 5. Deploy to Vercel
 
 1. Push the repo to GitHub, then **Import** it in Vercel.
