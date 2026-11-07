@@ -102,18 +102,18 @@ function build(now: Date, scenario: string | null): Task[] {
 
 // In-memory store per scenario, so demo writes persist until the server restarts.
 const stores = new Map<string, { tasks: Task[]; trashed: Set<string> }>();
-function store(scenario: string | null) {
-  const key = scenario ?? "default";
+function store(scenario: string | null, at = new Date(), atKey: string | null = null) {
+  const key = `${scenario ?? "default"}@${atKey ?? "live"}`;
   let st = stores.get(key);
   if (!st) {
-    st = { tasks: scenario === "empty" ? [] : build(new Date(), scenario), trashed: new Set() };
+    st = { tasks: scenario === "empty" ? [] : build(at, scenario), trashed: new Set() };
     stores.set(key, st);
   }
   return st;
 }
 
-export function demoSnapshot(scenario: string | null = null, now = new Date()): Snapshot {
-  const st = store(scenario);
+export function demoSnapshot(scenario: string | null = null, now = new Date(), nowKey: string | null = null): Snapshot {
+  const st = store(scenario, now, nowKey);
   return {
     user: { name: "Demo student", image: null, workspace: "Demo workspace" },
     courses: COURSES,

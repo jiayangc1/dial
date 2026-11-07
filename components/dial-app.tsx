@@ -3,10 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { AnimatePresence, motion, MotionConfig, useReducedMotion } from "motion/react";
 import { Header, Kbd } from "./header";
-import { Wheel, type CardStats } from "./wheel";
 import { ClassPanel } from "./class-panel";
 import { Tonight } from "./tonight";
-import { AddBar, type AddBarHandle } from "./add-bar";
+import { Composer, type ComposerHandle } from "./composer";
 import { EditSheet } from "./edit-sheet";
 import { SearchSheet } from "./search-sheet";
 import { ToastProvider, useToasts } from "./toasts";
@@ -43,7 +42,7 @@ export function DialApp() {
   const desktop = useMediaQuery("(min-width: 768px)");
   return (
     <MotionConfig reducedMotion="user">
-      <ToastProvider bottomOffset={desktop ? 24 : 88}>
+      <ToastProvider bottomOffset={desktop ? 24 : 16}>
         <Dial desktop={desktop} />
       </ToastProvider>
     </MotionConfig>
@@ -95,12 +94,12 @@ function Dial({ desktop }: { desktop: boolean }) {
   const nowIndex = nowIdx >= 0 ? nowIdx : null;
 
   const dayKey = now?.toDateString();
-  const stats = useMemo(() => {
-    const m = new Map<string, CardStats>();
+  const openCounts = useMemo(() => {
+    const m = new Map<string, number>();
     if (!now) return m;
     const ws = startOfWeek(now, timezone);
     const we = new Date(ws.getTime() + 7 * 86_400_000);
-    for (const c of courses) m.set(c.id, courseStats(tasks, c.id, ws, we));
+    for (const c of courses) m.set(c.id, courseStats(tasks, c.id, ws, we).open);
     return m;
     // Recompute on task changes and once a day, not on every clock tick.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -137,6 +136,15 @@ function Dial({ desktop }: { desktop: boolean }) {
     prevNow.current = nowName;
   }, [nowName, courseByName, selectedId]);
 
+  const selectId = useCallback(
+    (id: string) => {
+      const to = courses.findIndex((c) => c.id === id);
+      setDir(to >= selectedIndex ? 1 : -1);
+      setSelectedId(id);
+    },
+    [courses, selectedIndex],
+  );
+
   const selectIndex = useCallback(
     (i: number, d: 1 | -1) => {
       const c = courses[((i % courses.length) + courses.length) % courses.length];
@@ -168,7 +176,7 @@ function Dial({ desktop }: { desktop: boolean }) {
   const [searchOpen, setSearchOpen] = useState(false);
   const editingTask = editing ? (tasks.find((t) => t.key === editing.key) ?? null) : null;
   const sheetOpen = !!editingTask || searchOpen;
-  const addBar = useRef<AddBarHandle>(null);
+  const addBar = useRef<ComposerHandle>(null);
 
   // ── Actions (all optimistic) ────────────────────────────────────────
   const actions: RowActions = useMemo(
@@ -281,7 +289,7 @@ function Dial({ desktop }: { desktop: boolean }) {
           onNow={jumpNow}
         />
 
-        <main className="mx-auto w-full max-w-[640px] px-4 pb-[calc(var(--safe-bottom)+112px)] md:px-6 md:pb-16">
+        <main className="mx-auto w-full max-w-[640px] px-4 pb-[calc(var(--safe-bottom)+96px)] md:px-6 md:pb-16">
           <AnimatePresence mode="popLayout" initial={false}>
             {!ready ? (
               <motion.div key="skeleton" exit={{ opacity: 0 }} transition={fade}>
@@ -294,17 +302,26 @@ function Dial({ desktop }: { desktop: boolean }) {
               </motion.div>
             ) : (
               <motion.div key="app" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={fade}>
-                {tonight && <Tonight state={state!} tasks={tasks} courses={courseById} now={now!} actions={actions} />}
-
-                {tonight && <p className="px-3 pb-1 pt-8 text-label uppercase tracking-[0.04em] text-gray-900">Classes</p>}
-                <div className={tonight ? "pt-1" : "pt-4"}>
-                  <Wheel courses={courses} stats={stats} selected={selectedIndex} onSelect={selectIndex} nowIndex={nowIndex} now={now!} compact={!desktop} />
+                <div className="pt-4">
+                  <Composer
+                    ref={addBar}
+                    courses={courses}
+                    selected={selected}
+                    nowId={nowIndex !== null ? courses[nowIndex].id : null}
+                    nowLabel={state?.kind === "passing" ? "Next" : "Now"}
+                    openCounts={openCounts}
+                    onSelect={selectId}
+                    now={now!}
+                    onAdd={onAdd}
+                  />
                 </div>
 
-                {desktop && (
-                  <div className="mt-4">
-                    <AddBar ref={addBar} course={selected} courses={courses} now={now!} floating={false} onAdd={onAdd} />
-                  </div>
+                {tonight && <Tonight state={state!} tasks={tasks} courses={courseById} now={now!} actions={actions} />}
+                {tonight && selected && (
+                  <p className="flex items-center gap-2 px-3 pb-1 pt-8 text-label uppercase tracking-[0.04em] text-gray-900">
+                    <span className="size-1.5 rounded-full bg-accent" aria-hidden="true" />
+                    {selected.name}
+                  </p>
                 )}
 
                 <div className="relative mt-2">
@@ -336,7 +353,7 @@ function Dial({ desktop }: { desktop: boolean }) {
                     </span>
                     <span>
                       <Kbd>←</Kbd>
-                      <Kbd>→</Kbd> spin
+                      <Kbd>→</Kbd> switch class
                     </span>
                     <span>
                       <Kbd>.</Kbd> now
@@ -351,7 +368,6 @@ function Dial({ desktop }: { desktop: boolean }) {
           </AnimatePresence>
         </main>
 
-        {!desktop && ready && courses.length > 0 && <AddBar ref={addBar} course={selected} courses={courses} now={now!} floating onAdd={onAdd} />}
       </motion.div>
 
       {now && (
@@ -391,14 +407,13 @@ function Dial({ desktop }: { desktop: boolean }) {
 function AppSkeleton() {
   return (
     <div className="pt-4" aria-busy="true" aria-label="Loading your classes">
-      <div className="relative h-[232px] overflow-hidden md:h-[260px]">
-        <div className="skeleton absolute left-1/2 top-4 h-[168px] w-[248px] -translate-x-1/2 rounded-card md:h-[196px] md:w-[320px]" />
-        <div className="skeleton absolute left-1/2 top-4 h-[168px] w-[248px] -translate-x-[calc(50%+176px)] scale-[0.85] rounded-card opacity-50 md:h-[196px] md:w-[320px] md:-translate-x-[calc(50%+248px)]" />
-        <div className="skeleton absolute left-1/2 top-4 h-[168px] w-[248px] translate-x-[calc(-50%+176px)] scale-[0.85] rounded-card opacity-50 md:h-[196px] md:w-[320px] md:translate-x-[calc(-50%+248px)]" />
-        <div className="absolute inset-x-0 bottom-0 flex h-10 items-center justify-center gap-2.5">
-          {Array.from({ length: 7 }, (_, i) => (
-            <span key={i} className="skeleton size-1.5 rounded-full" />
-          ))}
+      <div className="surface rounded-sheet">
+        <div className="flex h-12 items-center gap-2 border-b border-hairline px-4">
+          <div className="skeleton size-2.5 rounded-full" />
+          <div className="skeleton h-3.5 w-28" />
+        </div>
+        <div className="flex h-[52px] items-center px-4">
+          <div className="skeleton h-3.5 w-44" />
         </div>
       </div>
       <div className="mt-2">

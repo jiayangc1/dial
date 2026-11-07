@@ -54,7 +54,11 @@ export function useSnapshot() {
     }
     inFlight.current = true;
     try {
-      const qs = scenario.current ? `?scenario=${encodeURIComponent(scenario.current)}` : "";
+      const params = new URLSearchParams();
+      if (scenario.current) params.set("scenario", scenario.current);
+      const nowParam = new URLSearchParams(window.location.search).get("now");
+      if (nowParam) params.set("now", nowParam);
+      const qs = params.size ? `?${params}` : "";
       const requestedAt = Date.now();
       const res = await fetch(`/api/data${qs}`, { cache: "no-store" });
       if (res.status === 401) {

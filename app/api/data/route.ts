@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { classify } from "@/lib/notion/client";
 import { readCourses, readTasks } from "@/lib/notion/read";
 import { demoSnapshot } from "@/lib/demo";
+import { fromZoned } from "@/lib/time";
+import { timezone } from "@/config/bells";
 import { getNotionContext, isDemo, readSources } from "@/lib/session";
 import type { Snapshot } from "@/lib/types";
 
@@ -10,7 +12,11 @@ import type { Snapshot } from "@/lib/types";
 // through the per-token rate-limit queue.
 export async function GET(req: NextRequest) {
   if (isDemo()) {
-    return NextResponse.json(demoSnapshot(req.nextUrl.searchParams.get("scenario")), { headers: { "Cache-Control": "no-store" } });
+    // Demo only: fixtures are generated relative to ?now= (school-local time).
+    const m = req.nextUrl.searchParams.get("now")?.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    const at = m ? fromZoned(+m[1], +m[2], +m[3], +m[4], +m[5], timezone) : new Date();
+    const scenario = req.nextUrl.searchParams.get("scenario");
+    return NextResponse.json(demoSnapshot(scenario, at, m ? m[0] : null), { headers: { "Cache-Control": "no-store" } });
   }
 
   const ctx = await getNotionContext();
