@@ -101,7 +101,11 @@ function build(now: Date, scenario: string | null): Task[] {
 }
 
 // In-memory store per scenario, so demo writes persist until the server restarts.
-const stores = new Map<string, { tasks: Task[]; trashed: Set<string> }>();
+// On globalThis: route handlers and Server Actions are separate bundles in
+// production, each with its own copy of this module.
+type DemoStores = Map<string, { tasks: Task[]; trashed: Set<string> }>;
+const g = globalThis as typeof globalThis & { __dialDemo?: DemoStores };
+const stores: DemoStores = (g.__dialDemo ??= new Map());
 function store(scenario: string | null, at = new Date(), atKey: string | null = null) {
   const key = `${scenario ?? "default"}@${atKey ?? "live"}`;
   let st = stores.get(key);

@@ -3,7 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowUp, Check, ChevronDown, X } from "lucide-react";
-import { parseQuickAdd, type Parsed, type TokenKind } from "@/lib/parse";
+import type { Parsed, TokenKind, parseQuickAdd as ParseFn } from "@/lib/parse";
 import { dueLabel, minutesLabel } from "@/lib/format";
 import { timezone } from "@/config/bells";
 import { spring, fade } from "@/lib/motion";
@@ -50,22 +50,43 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
     return () => clearInterval(id);
   }, [value, focused]);
 
-  // `now` ticks every second; parsing only depends on the day.
+  // chrono-node is the heaviest dependency; load it on first focus, not on boot.
+  const [parse, setParse] = useState<typeof ParseFn | null>(null);
+  const loadParser = () => {
+    if (!parse) void import("@/lib/parse").then((m) => setParse(() => m.parseQuickAdd));
+  };
+  // Warm it up when the browser is idle so it's cached before you go offline.
+  useEffect(() => {
+    const w = window as Window & { requestIdleCallback?: (cb: () => void) => number };
+    const run = () => void import("@/lib/parse").then((m) => setParse(() => m.parseQuickAdd));
+    if (w.requestIdleCallback) w.requestIdleCallback(run);
+    else setTimeout(run, 1500);
+  }, []);
   const day = now.toDateString();
   const parsed: Parsed | null = useMemo(
-    () => (value.trim() ? parseQuickAdd(value, { now, timezone, courses, ignore }) : null),
+    () => (value.trim() && parse ? parse(value, { now, timezone, courses, ignore }) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [value, courses, ignore, day],
+    [value, courses, ignore, day, parse],
   );
   const target = (parsed?.courseId && courses.find((c) => c.id === parsed.courseId)) || selected;
 
   const submit = () => {
-    if (!parsed?.title || !target) return;
+    if (!target) return;
+    // Parser not loaded (e.g. offline before it was cached): add the raw text.
+    if (!parse) {
+      const title = value.trim();
+      if (!title) return;
+      onAdd({ title, courseId: target.id, due: null, minutes: null, type: null, priority: "Medium" });
+      setValue("");
+      return;
+    }
+    if (!parsed?.title) return;
     onAdd({ title: parsed.title, courseId: target.id, due: parsed.due, minutes: parsed.minutes, type: parsed.type, priority: parsed.priority ?? "Medium" });
     setValue("");
     setIgnore(new Set());
   };
 
+  const canSubmit = parse ? !!parsed?.title : !!value.trim();
   const chips = parsed?.tokens.map((t) => ({ kind: t.kind, label: chipLabel(t.kind, parsed, now, courses) })) ?? [];
 
   return (
@@ -141,7 +162,11 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
                 setValue(e.target.value);
                 if (!e.target.value) setIgnore(new Set());
               }}
-              onFocus={() => setFocused(true)}
+              onFocus={() => {
+                setFocused(true);
+                loadParser();
+              }}
+              onPointerEnter={loadParser}
               onBlur={() => setFocused(false)}
               onKeyDown={(e) => {
                 if (e.key === "Escape") {
@@ -156,7 +181,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
               autoCorrect="off"
               spellCheck={false}
               aria-label={target ? `New task for ${target.name}` : "New task"}
-              className="h-11 w-full bg-transparent text-lead text-gray-1000 outline-none md:text-body"
+              className="h-11 w-full bg-transparent text-lead text-gray-1000 outline-none focus-visible:outline-none md:text-body"
             />
             {!value && (
               <span className="pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-nowrap text-lead text-gray-900 md:text-body" aria-hidden="true">
@@ -165,7 +190,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
                   <motion.span
                     key={example}
                     initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 0.7, y: 0 }}
+                    animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
                     transition={fade}
                     className="truncate"
@@ -178,9 +203,9 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
           </div>
           <motion.button
             type="submit"
-            animate={{ opacity: parsed?.title ? 1 : 0.35, scale: parsed?.title ? 1 : 0.9 }}
+            animate={{ opacity: canSubmit ? 1 : 0.35, scale: canSubmit ? 1 : 0.9 }}
             transition={spring.ui}
-            disabled={!parsed?.title}
+            disabled={!canSubmit}
             aria-label="Add task"
             onMouseDown={(e) => e.preventDefault()}
             className="pressable flex size-10 shrink-0 items-center justify-center rounded-full bg-gray-1000 text-bg"

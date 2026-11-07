@@ -10,13 +10,13 @@ import { spring, fade } from "@/lib/motion";
 import { signOutAction } from "@/app/actions";
 import { clearSnapshotCache, type SyncState } from "@/lib/client/use-snapshot";
 import type { NowState } from "@/lib/now";
+import { useClock } from "@/lib/client/clock";
 import type { Course, Snapshot } from "@/lib/types";
 
 const timeFmt = (d: Date) => d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" });
 
 export function Header({
   state,
-  now,
   courseByName,
   data,
   sync,
@@ -26,7 +26,6 @@ export function Header({
   onNow,
 }: {
   state: NowState | null;
-  now: Date | null;
   courseByName: Map<string, Course>;
   data: Snapshot | null;
   sync: SyncState;
@@ -35,6 +34,8 @@ export function Header({
   onSearch: () => void;
   onNow: () => void;
 }) {
+  // Only the header ticks every second (countdown + progress bar).
+  const now = useClock();
   let progress: number | null = null;
   let urgent = false;
   let accentCourse: Course | undefined;
@@ -52,7 +53,7 @@ export function Header({
         <a href="/app" className="pressable -ml-1 flex size-11 shrink-0 items-center justify-center rounded-full text-gray-1000 hover:bg-gray-100" aria-label="Dial">
           <Mark size={20} />
         </a>
-        <button onClick={onNow} className="pressable -ml-1 min-w-0 flex-1 rounded-md py-1 text-left" aria-label="Jump to now">
+        <button onClick={onNow} className="pressable -ml-1 min-w-0 flex-1 rounded-md py-1 text-left" title="Jump to now (.)">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div key={state?.kind ?? "loading"} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={fade}>
               <Status state={state} now={now} />

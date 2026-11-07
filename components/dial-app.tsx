@@ -6,11 +6,11 @@ import { Header, Kbd } from "./header";
 import { ClassPanel } from "./class-panel";
 import { Tonight } from "./tonight";
 import { Composer, type ComposerHandle } from "./composer";
-import { EditSheet } from "./edit-sheet";
-import { SearchSheet } from "./search-sheet";
+import dynamic from "next/dynamic";
+import { WifiOff } from "lucide-react";
 import { ToastProvider, useToasts } from "./toasts";
 import { useSnapshot } from "@/lib/client/use-snapshot";
-import { useClock } from "@/lib/client/clock";
+import { useMinuteClock } from "@/lib/client/clock";
 import { TaskStore, type ClientTask } from "@/lib/client/task-store";
 import { accentStyle } from "@/lib/colors";
 import { bellConfig } from "@/lib/bells";
@@ -22,6 +22,10 @@ import { timezone } from "@/config/bells";
 import { fade, easeOut } from "@/lib/motion";
 import type { NewTask, TaskPatch } from "@/lib/types";
 import type { RowActions } from "./task-row";
+
+// Sheets aren't needed for first paint; load them in the background.
+const EditSheet = dynamic(() => import("./edit-sheet").then((m) => m.EditSheet), { ssr: false });
+const SearchSheet = dynamic(() => import("./search-sheet").then((m) => m.SearchSheet), { ssr: false });
 
 const EMPTY: ClientTask[] = [];
 const noopSubscribe = () => () => {};
@@ -49,9 +53,17 @@ export function DialApp() {
   );
 }
 
+function useServiceWorker() {
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production" || !("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }, []);
+}
+
 function Dial({ desktop }: { desktop: boolean }) {
+  useServiceWorker();
   const { data, sync, reload } = useSnapshot();
-  const now = useClock();
+  const now = useMinuteClock();
   const toasts = useToasts();
   const reduced = useReducedMotion();
 
@@ -269,6 +281,14 @@ function Dial({ desktop }: { desktop: boolean }) {
 
   const tonight = state ? isTonight(state) : false;
 
+  // The very first class panel renders without a stagger; later class changes animate.
+  const [introDone, setIntroDone] = useState(false);
+  useEffect(() => {
+    if (!ready || introDone) return;
+    const t = setTimeout(() => setIntroDone(true), 300);
+    return () => clearTimeout(t);
+  }, [ready, introDone]);
+
   return (
     <>
       <motion.div
@@ -279,7 +299,6 @@ function Dial({ desktop }: { desktop: boolean }) {
       >
         <Header
           state={state}
-          now={now}
           courseByName={courseByName}
           data={data}
           sync={sync}
@@ -291,7 +310,13 @@ function Dial({ desktop }: { desktop: boolean }) {
 
         <main className="mx-auto w-full max-w-[640px] px-4 pb-[calc(var(--safe-bottom)+96px)] md:px-6 md:pb-16">
           <AnimatePresence mode="popLayout" initial={false}>
-            {!ready ? (
+            {!ready && sync.kind === "offline" && !data ? (
+              <motion.div key="offline" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={fade} className="flex flex-col items-center py-24 text-center">
+                <WifiOff size={24} strokeWidth={1.5} className="text-gray-900" />
+                <h2 className="mt-4 text-heading font-semibold text-gray-1000">You&rsquo;re offline</h2>
+                <p className="mt-2 max-w-[300px] text-body text-gray-900">Dial will load your classes as soon as you&rsquo;re back online.</p>
+              </motion.div>
+            ) : !ready ? (
               <motion.div key="skeleton" exit={{ opacity: 0 }} transition={fade}>
                 <AppSkeleton />
               </motion.div>
@@ -340,7 +365,7 @@ function Dial({ desktop }: { desktop: boolean }) {
                         exit="exit"
                         transition={{ duration: 0.18, ease: easeOut }}
                       >
-                        <ClassPanel course={selected} tasks={tasks} now={now!} actions={actions} dir={dir} onAddFirst={() => addBar.current?.focus()} />
+                        <ClassPanel course={selected} tasks={tasks} now={now!} actions={actions} dir={dir} instant={!introDone} onAddFirst={() => addBar.current?.focus()} />
                       </motion.div>
                     )}
                   </AnimatePresence>

@@ -42,3 +42,24 @@ export function useClock(): Date | null {
   }, []);
   return now;
 }
+
+/**
+ * Minute-precision clock for everything except the countdown. Bell times
+ * are whole minutes, so "now" state and due labels only change on the
+ * minute; re-rendering the task list every second would waste the frame
+ * budget (and re-measure every layout-animated row).
+ */
+export function useMinuteClock(): Date | null {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const d = clockNow();
+      setNow(d);
+      timer = setTimeout(tick, 60_000 - (d.getTime() % 60_000) + 20);
+    };
+    tick();
+    return () => clearTimeout(timer);
+  }, []);
+  return now;
+}

@@ -137,7 +137,6 @@ export function TaskRow({ task, now, actions, course }: { task: ClientTask; now:
             actions.onOpen(task);
           }}
           className="min-w-0 flex-1 text-left outline-none focus-visible:rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
-          aria-label={`${task.title}${due ? `, due ${due.text}` : ""}. Open details`}
         >
           <p className={`line-clamp-2 break-words text-body ${showDone ? "text-gray-900" : "text-gray-1000"}`}>
             <span className="strike" data-on={showDone}>
@@ -166,6 +165,7 @@ export function TaskRow({ task, now, actions, course }: { task: ClientTask; now:
             {inProgress && <span>{task.status}</span>}
             {task.priority === "High" && !showDone && <span className="text-gray-1000">High</span>}
             {task.pending && <span className="sr-only">Saving</span>}
+            <span className="sr-only">. Open details</span>
           </span>
         </button>
         {task.calendarEvent && (

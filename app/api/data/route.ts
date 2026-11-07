@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { NextResponse, type NextRequest } from "next/server";
 import { classify } from "@/lib/notion/client";
 import { readCourses, readTasks } from "@/lib/notion/read";
@@ -11,6 +12,7 @@ import type { Snapshot } from "@/lib/types";
 // open + done-this-week tasks. Courses and tasks are fetched in parallel
 // through the per-token rate-limit queue.
 export async function GET(req: NextRequest) {
+  await connection(); // always per-request: this reads the session
   if (isDemo()) {
     // Demo only: fixtures are generated relative to ?now= (school-local time).
     const m = req.nextUrl.searchParams.get("now")?.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);

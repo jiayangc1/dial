@@ -78,12 +78,14 @@ export function EditSheet({
 }) {
   const [draft, setDraft] = useState<Draft | null>(task ? toDraft(task) : null);
   const [last, setLast] = useState<ClientTask | null>(task);
+  const [showTime, setShowTime] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
   // Reset the draft whenever a different task opens.
   if (task && task.key !== last?.key) {
     setLast(task);
     setDraft(toDraft(task));
+    setShowTime(false);
   }
 
   useEffect(() => {
@@ -166,17 +168,29 @@ export function EditSheet({
                 type="date"
                 value={draft.date}
                 onChange={(e) => set("date", e.target.value)}
-                className="h-11 flex-1 rounded-card border border-hairline bg-gray-100 px-3 font-mono text-body tabular text-gray-1000 outline-none focus-visible:border-accent"
+                className="h-11 min-w-0 flex-1 rounded-card border border-hairline bg-gray-100 px-3 font-mono text-body tabular text-gray-1000 outline-none focus-visible:border-accent"
                 aria-label="Due date"
               />
-              <input
-                type="time"
-                value={draft.time}
-                disabled={!draft.date}
-                onChange={(e) => set("time", e.target.value)}
-                className="h-11 w-32 rounded-card border border-hairline bg-gray-100 px-3 font-mono text-body tabular text-gray-1000 outline-none focus-visible:border-accent disabled:opacity-40"
-                aria-label="Due time (optional)"
-              />
+              {draft.time || showTime ? (
+                <input
+                  type="time"
+                  value={draft.time}
+                  disabled={!draft.date}
+                  autoFocus={showTime && !draft.time}
+                  onChange={(e) => set("time", e.target.value)}
+                  className="h-11 w-32 rounded-card border border-hairline bg-gray-100 px-3 font-mono text-body tabular text-gray-1000 outline-none focus-visible:border-accent disabled:opacity-40"
+                  aria-label="Due time"
+                />
+              ) : (
+                <button
+                  type="button"
+                  disabled={!draft.date}
+                  onClick={() => setShowTime(true)}
+                  className="pressable h-11 shrink-0 rounded-card border border-dashed border-hairline-strong px-3 text-small text-gray-900 hover:text-gray-1000 disabled:opacity-40"
+                >
+                  + Time
+                </button>
+              )}
             </div>
             {draft.date && <p className="mt-1.5 text-small text-gray-900">{dueLabel(draftDue(draft), now)?.exact}</p>}
           </Field>

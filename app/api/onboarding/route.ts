@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { NextResponse } from "next/server";
 import { classify } from "@/lib/notion/client";
 import { findSources, listSharedPages } from "@/lib/notion/discover";
@@ -7,6 +8,7 @@ import { getNotionContext, isDemo } from "@/lib/session";
 // Dial thinks is right (the one containing the Assignments + Courses data
 // sources, detected by schema).
 export async function GET() {
+  await connection(); // always per-request: this reads the session
   if (isDemo()) {
     return NextResponse.json({
       pages: [

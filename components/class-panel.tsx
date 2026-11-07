@@ -17,11 +17,13 @@ type Props = {
   now: Date;
   actions: RowActions;
   onAddFirst: () => void;
-  /** Direction of the wheel move that brought this class in: list enters from that side. */
+  /** Direction of the class change: the list enters from that side. */
   dir: number;
+  /** First paint of the app: show rows immediately (the page already cross-fades from the skeleton). */
+  instant?: boolean;
 };
 
-export function ClassPanel({ course, tasks, now, actions, onAddFirst, dir }: Props) {
+export function ClassPanel({ course, tasks, now, actions, onAddFirst, dir, instant = false }: Props) {
   const g = groupTasks(tasks, course.id, now) as { soon: ClientTask[]; later: ClientTask[]; done: ClientTask[] };
   const [showDone, setShowDone] = useState(false);
   const mounted = useRef(false);
@@ -32,7 +34,7 @@ export function ClassPanel({ course, tasks, now, actions, onAddFirst, dir }: Pro
   const open = g.soon.length + g.later.length;
 
   let i = 0;
-  const row = (t: ClientTask) => <Row key={t.key} task={t} now={now} actions={actions} index={i++} dir={dir} mounted={mounted} />;
+  const row = (t: ClientTask) => <Row key={t.key} task={t} now={now} actions={actions} index={i++} dir={dir} mounted={mounted} instant={instant} />;
 
   return (
     <div className="pb-4">
@@ -59,7 +61,7 @@ export function ClassPanel({ course, tasks, now, actions, onAddFirst, dir }: Pro
             <motion.span animate={{ rotate: showDone ? 90 : 0 }} transition={spring.ui} className="flex">
               <ChevronRight size={16} strokeWidth={1.5} />
             </motion.span>
-            Done this week <span className="font-mono tabular text-gray-600">· {g.done.length}</span>
+            Done this week <span className="font-mono tabular text-gray-900">· {g.done.length}</span>
           </button>
           <AnimatePresence initial={false}>
             {showDone && (
@@ -88,7 +90,7 @@ function Group({ label, count, children }: { label: string; count: number; child
             transition={fade}
             className="px-3 pb-1 pt-4 text-label uppercase tracking-[0.04em] text-gray-900"
           >
-            {label} <span className="font-mono tabular text-gray-600">· {count}</span>
+            {label} <span className="font-mono tabular text-gray-900">· {count}</span>
           </motion.h3>
         )}
       </AnimatePresence>
@@ -104,7 +106,9 @@ function Row({
   index,
   dir,
   mounted,
+  instant,
 }: {
+  instant?: boolean;
   task: ClientTask;
   now: Date;
   actions: RowActions;
@@ -120,7 +124,7 @@ function Row({
   return (
     <motion.div
       layout={!reduced}
-      initial={initial}
+      initial={instant && !added ? false : initial}
       animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
       exit={{ opacity: 0, height: 0, transition: { duration: 0.24, ease: easeOut } }}
       transition={added ? spring.ui : { ...spring.ui, delay: Math.min(index, 12) * 0.03 }}
