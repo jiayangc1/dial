@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Dial
 
-## Getting Started
+A class-aware to-do app on top of your Notion. Dial checks your bell schedule, works out which class you're in, and opens that class's tasks. Tasks live in your existing Notion databases. Dial reads and writes them there and keeps no copy of its own.
 
-First, run the development server:
+Next.js 16 (App Router) · TypeScript · Tailwind 4 · Motion · Auth.js v5 (Notion OAuth) · `@notionhq/client` (data-source API, `2025-09-03`).
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+See [`DESIGN.md`](DESIGN.md) for the design spec and `docs/review/` for the screenshot reviews of each stage.
+
+## 1. Create the Notion public integration
+
+1. Go to <https://www.notion.so/profile/integrations> → **New integration**.
+2. Set **Type** to **Public**. Fill in the name (Dial), the website, and the privacy and terms URLs that Notion requires (your deployment URL is fine).
+3. Under **OAuth domain & URIs**, add one redirect URI per environment:
+   - local: `http://localhost:3000/api/auth/callback/notion`
+   - production: `https://<your-domain>/api/auth/callback/notion`
+4. Under **Capabilities**, enable **Read content**, **Update content**, **Insert content**, and **Read user information including email addresses**.
+5. Copy the **OAuth client ID** and **OAuth client secret**.
+
+When you first sign in, Notion's consent screen asks which pages to share. Pick **🎒 Assignment Tracker**. Both the Assignments and Courses databases must be inside it, or shared alongside it.
+
+## 2. Environment variables
+
+Copy `.env.example` to `.env.local` and fill it in:
+
+| Variable | What it is |
+|---|---|
+| `AUTH_NOTION_ID` | OAuth client ID from the integration |
+| `AUTH_NOTION_SECRET` | OAuth client secret |
+| `NOTION_REDIRECT_URI` | Must exactly match a redirect URI on the integration, e.g. `http://localhost:3000/api/auth/callback/notion` |
+| `AUTH_SECRET` | Random secret that encrypts the session. Generate one with `npx auth secret` or `openssl rand -base64 33` |
+| `AUTH_URL` | Optional. Your public URL in production |
+| `DIAL_DEMO` | `1` serves built-in fixture data with no Notion connection (development only) |
+
+The Notion access token is stored only inside the encrypted session cookie (a JWE). It never reaches the browser, and every Notion call runs server-side.
+
+## 3. Fill in your bell schedule
+
+Edit [`config/bells.ts`](config/bells.ts). **The schedule in that file is an example.** Replace it with your real one.
+
+```ts
+export const timezone = "America/Chicago";
+export const schoolEnds = "16:00";
+export const schedules = {
+  regular: [
+    { period: "1", start: "08:30", end: "09:20", course: "Pre-Calc" },
+    { period: "Lunch", start: "11:10", end: "11:45", course: null },
+    // ...
+  ],
+  earlyRelease: [/* ... */],
+};
+export const dayType = (date: Date) => "regular"; // return "a" / "b" for A/B rotations
+export const overrides = { "2026-11-26": "none" };  // holidays and odd days
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- `course` must match the Notion **Course Name** exactly. The last onboarding step flags any name that doesn't match.
+- Add a schedule for each day type, and pick between them in `dayType`.
+- `overrides` maps a local date to a schedule name, or to `"none"` for a day off.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 4. Run it
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm install
+npm run dev            # http://localhost:3000
+```
 
-## Learn More
+To try the app without Notion, set `DIAL_DEMO=1` in `.env.local`. Add `?scenario=heavy` (50 tasks) or `?scenario=empty` to `/app` for the stress states.
 
-To learn more about Next.js, take a look at the following resources:
+## 5. Deploy to Vercel
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Push the repo to GitHub, then **Import** it in Vercel.
+2. Add `AUTH_NOTION_ID`, `AUTH_NOTION_SECRET`, `AUTH_SECRET`, and `NOTION_REDIRECT_URI=https://<your-domain>/api/auth/callback/notion` under Project → Settings → Environment Variables.
+3. Add that same production redirect URI to the Notion integration.
+4. Deploy. Leave `DIAL_DEMO` unset in production; demo mode refuses to run there anyway.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## How data flows
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Discovery:** after sign-in, Dial searches the shared pages for the two data sources by their schema: Assignments (a "Course" relation and a "Status" status property) and Courses (a "Currently enrolled" checkbox). It saves their IDs in an httpOnly cookie, so nothing is hard-coded.
+- **Reads:** `GET /api/data` makes one paginated query for open tasks plus tasks completed this week, and one query for enrolled courses. The two run in parallel. The client paints from its last cached snapshot first, then polls every 60 seconds while the tab is visible.
+- **Rate limits:** each token gets a queue that spaces requests 340ms apart (about 3 per second). The SDK retries 429s with backoff.
+- **Bot-owned fields:** "Scheduled For" and "Calendar Event" are read-only. Dial shows them and never writes them.
+- **Expired access:** if Notion answers 401 or 403, Dial clears the session and returns you to sign-in with a notice.

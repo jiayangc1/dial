@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 // Google Calendar event colours, tuned per theme so each one clears 3:1 as a UI
 // colour against the Geist background (#0a0a0a dark, #ffffff light). `on` is
 // the text/icon colour used on a solid accent fill (checkbox, FAB).
@@ -35,10 +37,14 @@ export function accentFor(name: string | null | undefined): Accent {
   return (name && CALENDAR_COLORS[name]) || NEUTRAL;
 }
 
-/** CSS custom properties for an element whose subtree should use this accent. */
-export function accentVars(name: string | null | undefined, scheme: "dark" | "light"): Record<string, string> {
+/**
+ * CSS custom properties for a subtree that should use this accent. Uses
+ * light-dark() so the right variant follows the system theme with no JS.
+ */
+export function accentStyle(name: string | null | undefined): CSSProperties {
   const a = accentFor(name);
-  return scheme === "dark"
-    ? { "--accent": a.dark, "--on-accent": a.onDark }
-    : { "--accent": a.light, "--on-accent": a.onLight };
+  return {
+    "--accent": `light-dark(${a.light}, ${a.dark})`,
+    "--on-accent": `light-dark(${a.onLight}, ${a.onDark})`,
+  } as CSSProperties;
 }

@@ -183,3 +183,18 @@ button:disabled {
     transform: none;
   }
 }
+
+/* Landing: the dial ring turns once every two minutes. */
+.dial-ring {
+  animation: dial-turn 120s linear infinite;
+}
+@keyframes dial-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dial-ring {
+    animation: none;
+  }
+}
