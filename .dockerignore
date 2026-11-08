@@ -1,0 +1,8 @@
+node_modules
+.next
+.git
+.ovis
+.env*
+!.env.example
+docs/review
+*.log
