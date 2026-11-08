@@ -44,7 +44,7 @@ export function SearchSheet({
   return (
     <Sheet open={open} onClose={onClose} label="Search tasks" initialFocus="#search-input">
       <div className="pt-1">
-        <div className="flex h-12 items-center gap-2 rounded-card border border-hairline bg-gray-100 px-3 focus-within:border-hairline-strong">
+        <div className="flex h-12 items-center gap-2 rounded-card border border-hairline bg-gray-100 px-3 transition-[box-shadow] duration-150 focus-within:border-transparent focus-within:shadow-[0_0_0_2px_var(--accent)]">
           <Search size={16} strokeWidth={1.5} className="text-gray-900" aria-hidden="true" />
           <input
             id="search-input"
@@ -71,7 +71,7 @@ export function SearchSheet({
             aria-controls="search-results"
             aria-activedescendant={results[active] ? `sr-${results[active].key}` : undefined}
             autoComplete="off"
-            className="h-full flex-1 bg-transparent text-lead text-gray-1000 outline-none placeholder:text-gray-900 md:text-body"
+            className="h-full flex-1 bg-transparent text-lead text-gray-1000 outline-none placeholder:text-gray-900 focus-visible:outline-none md:text-body"
           />
         </div>
         <ul id="search-results" role="listbox" className="mt-2 min-h-[240px]">
@@ -87,8 +87,8 @@ export function SearchSheet({
                   className={`pressable flex min-h-12 w-full items-center gap-3 rounded-card px-3 text-left ${i === active ? "bg-gray-100" : ""}`}
                 >
                   <span className="size-2 shrink-0 rounded-full bg-accent" aria-hidden="true" />
-                  <span className={`min-w-0 flex-1 truncate text-body ${t.statusGroup === "complete" ? "text-gray-900 line-through" : "text-gray-1000"}`}>{t.title}</span>
-                  <span className="shrink-0 text-small text-gray-900">{c?.name}</span>
+                  <span className={`min-w-[40%] flex-1 truncate text-body ${t.statusGroup === "complete" ? "text-gray-900 line-through" : "text-gray-1000"}`}>{t.title}</span>
+                  <span className="max-w-[38%] shrink truncate text-small text-gray-900">{c?.name}</span>
                   {due && <span className={`w-16 shrink-0 text-right text-small ${due.overdue && t.statusGroup !== "complete" ? "text-red" : "text-gray-900"}`}>{due.text}</span>}
                 </button>
               </li>

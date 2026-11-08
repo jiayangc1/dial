@@ -96,78 +96,85 @@
 }
 
 /* ── Base ─────────────────────────────────────────────────────────────── */
-html {
-  background: var(--bg);
-  -webkit-text-size-adjust: 100%;
-  -webkit-tap-highlight-color: transparent;
-}
-body {
-  background: var(--bg);
-  color: var(--gray-1000);
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  font-size: 14px;
-  line-height: 20px;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-  min-height: 100dvh;
-  overscroll-behavior-y: none;
-}
-::selection {
-  background: color-mix(in srgb, var(--accent) 35%, transparent);
-}
-:focus {
-  outline: none;
-}
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 6px;
-}
-button {
-  cursor: pointer;
-}
-button:disabled {
-  cursor: default;
-}
-
-/* Pressed state for every control. */
-.pressable {
-  transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out), opacity 160ms var(--ease-out);
-}
-.pressable:active:not(:disabled) {
-  transform: scale(0.97);
+/* In the base layer so Tailwind utilities (e.g. focus-visible:outline-none) can override it. */
+@layer base {
+  html {
+    background: var(--bg);
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    background: var(--bg);
+    color: var(--gray-1000);
+    font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 20px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    min-height: 100dvh;
+    overscroll-behavior-y: none;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  :focus {
+    outline: none;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: default;
+  }
 }
 
-.tabular {
-  font-variant-numeric: tabular-nums;
+@layer components {
+  /* Pressed state for every control. */
+  .pressable {
+    transition: transform 160ms var(--ease-out), background-color 160ms var(--ease-out), opacity 160ms var(--ease-out);
+  }
+  .pressable:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .surface {
+    background: var(--gray-200);
+    border: 1px solid var(--hairline);
+    box-shadow: var(--inner-highlight);
+  }
+  .glass {
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
 }
 
-.surface {
-  background: var(--gray-200);
-  border: 1px solid var(--hairline);
-  box-shadow: var(--inner-highlight);
-}
-.glass {
-  background: var(--glass);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
-}
-
-/* Skeleton shimmer: transform-only. */
-.skeleton {
-  position: relative;
-  overflow: hidden;
-  background: var(--skeleton);
-  border-radius: 6px;
-}
-.skeleton::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, var(--skeleton-shine), transparent);
-  animation: shimmer 1.6s var(--ease-out) infinite;
+@layer components {
+  /* Skeleton shimmer: transform-only. */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background: var(--skeleton);
+    border-radius: 6px;
+  }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, var(--skeleton-shine), transparent);
+    animation: shimmer 1.6s var(--ease-out) infinite;
+  }
 }
 @keyframes shimmer {
   to {
