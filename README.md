@@ -96,18 +96,18 @@ To preview any time of day in the UI, add `?now=2026-11-09T08:45` (school-local 
 
 ## 5. Deploy
 
-### Coolify (how dial.ch3n.cc runs)
+### Coolify (how dial.lsjc.dev runs)
 
 The repo ships a `Dockerfile` (a Next.js standalone server on port 3000) and a `/api/health` liveness route.
 
-1. In Coolify, create an application from the GitHub repo, branch `main`, build pack **Dockerfile**, port **3000**, health check path `/api/health`. Set the domain, e.g. `https://dial.ch3n.cc`.
+1. In Coolify, create an application from the GitHub repo, branch `main`, build pack **Dockerfile**, port **3000**, health check path `/api/health`. Set the domain, e.g. `https://dial.lsjc.dev` (a DNS-only CNAME to the server). Extra domains can be listed too; sign-in always finishes on the `AUTH_URL` host.
 2. Add these as **runtime** environment variables (not build-time):
 
    | Variable | Value |
    |---|---|
    | `AUTH_SECRET` | `openssl rand -base64 33` |
-   | `AUTH_URL` | `https://dial.ch3n.cc` |
-   | `NOTION_REDIRECT_URI` | `https://dial.ch3n.cc/api/auth/callback/notion` |
+   | `AUTH_URL` | `https://dial.lsjc.dev` |
+   | `NOTION_REDIRECT_URI` | `https://dial.lsjc.dev/api/auth/callback/notion` |
    | `AUTH_NOTION_ID` | OAuth client ID from the Notion integration |
    | `AUTH_NOTION_SECRET` | OAuth client secret from the Notion integration |
 
