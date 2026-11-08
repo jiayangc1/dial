@@ -6,6 +6,7 @@ import { MotionRoot } from "./motion-root";
 import { Check, TriangleAlert, ArrowRight, FileText } from "lucide-react";
 import { Mark } from "./logo";
 import { Spinner } from "./spinner";
+import { Tooltip } from "./ui/tooltip";
 import { connectTracker } from "@/app/actions";
 import { schedules, timezone } from "@/config/bells";
 import { accentStyle } from "@/lib/colors";
@@ -227,9 +228,11 @@ function ConfirmBells({ onBack }: { onBack: () => void }) {
               />
               <span className={`flex-1 truncate text-body ${p.course ? "text-gray-1000" : "text-gray-900"}`}>{p.course ?? p.period}</span>
               {missing && (
-                <span className="flex items-center gap-1 text-label text-red" title="No enrolled Notion course has this exact name">
-                  <TriangleAlert size={12} strokeWidth={1.5} /> Not in Notion
-                </span>
+                <Tooltip content="No enrolled Notion course has this exact name" side="top" align="end">
+                  <span className="flex items-center gap-1 text-label text-red">
+                    <TriangleAlert size={12} strokeWidth={1.5} /> Not in Notion
+                  </span>
+                </Tooltip>
               )}
               <span className="font-mono text-small tabular text-gray-900">
                 {clock(p.start)}–{clock(p.end)}

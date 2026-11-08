@@ -20,6 +20,7 @@
   --red: #ff6166;
   --skeleton: rgba(255, 255, 255, 0.06);
   --skeleton-shine: rgba(255, 255, 255, 0.06);
+  --menu-shadow: rgba(0, 0, 0, 0.6);
 
   /* Current-class accent. Set per class at runtime. Neutral by default. */
   --accent: #a1a1a1;
@@ -50,6 +51,7 @@
     --red: #d8001b;
     --skeleton: rgba(0, 0, 0, 0.05);
     --skeleton-shine: rgba(255, 255, 255, 0.6);
+    --menu-shadow: rgba(0, 0, 0, 0.16);
     --accent: #666666;
     --on-accent: #ffffff;
   }
@@ -331,4 +333,86 @@
   from {
     opacity: 0;
   }
+}
+
+/* ── Custom controls ───────────────────────────────────────────────────── */
+/* Input-like surface for the pickers and stepper. */
+@utility field {
+  border-radius: var(--radius-card);
+  border: 1px solid var(--hairline);
+  background: var(--gray-100);
+  transition:
+    border-color 150ms var(--ease-out),
+    box-shadow 150ms var(--ease-out),
+    background-color 150ms var(--ease-out),
+    transform 160ms var(--ease-out);
+  &:hover:not(:disabled) {
+    border-color: var(--hairline-strong);
+  }
+}
+@utility field-active {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* Floating menus, popovers and the command menu. */
+@utility menu-surface {
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--hairline-strong);
+  box-shadow:
+    var(--inner-highlight),
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 16px 48px -12px var(--menu-shadow);
+}
+
+.segment-thumb {
+  transition:
+    transform 260ms cubic-bezier(0.34, 1.2, 0.64, 1),
+    opacity 150ms var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .segment-thumb {
+    transition: opacity 150ms var(--ease-out);
+  }
+}
+
+/* Slim, theme-matched scrollbars wherever a list scrolls inside a panel. */
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gray-500) transparent;
+}
+.scroll-thin::-webkit-scrollbar {
+  width: 10px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: var(--gray-500);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Search match highlight in the command menu. */
+.match {
+  color: var(--gray-1000);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 3px;
+  box-decoration-break: clone;
+}
+
+/* The add bar: a quiet accent ring while you type, not a hard outline. */
+.composer {
+  transition:
+    border-color 150ms var(--ease-out),
+    box-shadow 150ms var(--ease-out);
+}
+.composer-focus {
+  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+  box-shadow:
+    var(--inner-highlight),
+    0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
 }

@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import { CalendarCheck, ExternalLink, Trash2 } from "lucide-react";
 import { Sheet } from "./sheet";
+import { DatePicker } from "./ui/date-picker";
+import { TimePicker } from "./ui/time-picker";
+import { Chip, Segmented, Stepper } from "./ui/controls";
 import { TYPE_ICON } from "./task-row";
 import { accentStyle } from "@/lib/colors";
 import { dueLabel } from "@/lib/format";
@@ -78,14 +81,12 @@ export function EditSheet({
 }) {
   const [draft, setDraft] = useState<Draft | null>(task ? toDraft(task) : null);
   const [last, setLast] = useState<ClientTask | null>(task);
-  const [showTime, setShowTime] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
   // Reset the draft whenever a different task opens.
   if (task && task.key !== last?.key) {
     setLast(task);
     setDraft(toDraft(task));
-    setShowTime(false);
   }
 
   useEffect(() => {
@@ -145,6 +146,7 @@ export function EditSheet({
 
           <Field label="Status">
             <Segmented
+              label="Status"
               options={STATUSES.map((s) => ({ value: s, label: s === "Need to Submit" ? "To submit" : s }))}
               value={STATUSES.includes(draft.status as Status) ? draft.status : null}
               onChange={(v) => set("status", v)}
@@ -163,36 +165,10 @@ export function EditSheet({
               </Chip>
             </div>
             <div className="mt-2 flex gap-2">
-              <input
-                id="due-date"
-                type="date"
-                value={draft.date}
-                onChange={(e) => set("date", e.target.value)}
-                className="h-11 min-w-0 flex-1 rounded-card border border-hairline bg-gray-100 px-3 font-mono text-body tabular text-gray-1000 outline-none focus-visible:border-accent"
-                aria-label="Due date"
-              />
-              {draft.time || showTime ? (
-                <input
-                  type="time"
-                  value={draft.time}
-                  disabled={!draft.date}
-                  autoFocus={showTime && !draft.time}
-                  onChange={(e) => set("time", e.target.value)}
-                  className="h-11 w-32 rounded-card border border-hairline bg-gray-100 px-3 font-mono text-body tabular text-gray-1000 outline-none focus-visible:border-accent disabled:opacity-40"
-                  aria-label="Due time"
-                />
-              ) : (
-                <button
-                  type="button"
-                  disabled={!draft.date}
-                  onClick={() => setShowTime(true)}
-                  className="pressable h-11 shrink-0 rounded-card border border-dashed border-hairline-strong px-3 text-small text-gray-900 hover:text-gray-1000 disabled:opacity-40"
-                >
-                  + Time
-                </button>
-              )}
+              <DatePicker id="due-date" value={draft.date} todayKey={quick[0].date} onChange={(v) => setDraft({ ...draft, date: v, time: v ? draft.time : "" })} />
+              <TimePicker value={draft.time} disabled={!draft.date} onChange={(v) => set("time", v)} />
             </div>
-            {draft.date && <p className="mt-1.5 text-small text-gray-900">{dueLabel(draftDue(draft), now)?.exact}</p>}
+            {draft.date && <p className="mt-2 px-0.5 text-small text-gray-900">{dueLabel(draftDue(draft), now)?.exact}</p>}
           </Field>
 
           <Field label="Type">
@@ -208,29 +184,21 @@ export function EditSheet({
             </div>
           </Field>
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <Field label="Est. minutes">
+          <div className="flex flex-col gap-6">
+            <Field label="Estimate">
               <div className="flex gap-1.5">
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  step={5}
-                  value={draft.minutes}
-                  onChange={(e) => set("minutes", e.target.value)}
-                  placeholder="—"
-                  className="h-11 w-20 rounded-card border border-hairline bg-gray-100 px-3 font-mono text-body tabular text-gray-1000 outline-none placeholder:text-gray-900 focus-visible:border-accent"
-                  aria-label="Estimated minutes"
-                />
+                <div className="w-[132px] shrink-0">
+                  <Stepper value={draft.minutes} onChange={(v) => set("minutes", v)} label="Estimated minutes" unit="m" />
+                </div>
                 {[15, 30, 60].map((m) => (
-                  <Chip key={m} on={draft.minutes === String(m)} onClick={() => set("minutes", String(m))}>
+                  <Chip key={m} on={draft.minutes === String(m)} onClick={() => set("minutes", String(m))} label={`${m} minutes`}>
                     <span className="font-mono tabular">{m}</span>
                   </Chip>
                 ))}
               </div>
             </Field>
             <Field label="Priority">
-              <Segmented options={PRIORITIES.map((p) => ({ value: p, label: p }))} value={draft.priority} onChange={(v) => set("priority", v as Priority)} />
+              <Segmented label="Priority" options={PRIORITIES.map((p) => ({ value: p, label: p }))} value={draft.priority} onChange={(v) => set("priority", v as Priority)} />
             </Field>
           </div>
 
@@ -278,40 +246,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <p className="mb-2 text-label uppercase tracking-[0.04em] text-gray-900">{label}</p>
       {children}
-    </div>
-  );
-}
-
-function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={on}
-      onClick={onClick}
-      className={`pressable flex h-9 items-center gap-1.5 rounded-full border px-3 text-small ${
-        on ? "border-gray-1000 bg-gray-1000 text-bg" : "border-hairline text-gray-1000 hover:bg-gray-100"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Segmented<T extends string>({ options, value, onChange }: { options: Array<{ value: T; label: string }>; value: T | null; onChange: (v: T) => void }) {
-  return (
-    <div role="radiogroup" className="flex rounded-full border border-hairline bg-gray-100 p-0.5">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          role="radio"
-          aria-checked={value === o.value}
-          onClick={() => onChange(o.value)}
-          className={`pressable h-9 flex-1 whitespace-nowrap rounded-full px-2 text-small ${value === o.value ? "bg-bg text-gray-1000 shadow-[0_0_0_1px_var(--hairline-strong)]" : "text-gray-900 hover:text-gray-1000"}`}
-        >
-          {o.label}
-        </button>
-      ))}
     </div>
   );
 }

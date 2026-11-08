@@ -105,7 +105,7 @@ export function Sheet({
             >
               <span className="h-1 w-9 rounded-full bg-gray-500" />
             </div>
-            <div className="max-h-[calc(92dvh-24px)] overflow-y-auto overscroll-contain px-4 pb-[calc(var(--safe-bottom)+16px)] md:px-6 md:pb-6">{children}</div>
+            <div className="scroll-thin max-h-[calc(92dvh-24px)] overflow-y-auto overscroll-contain px-4 pb-[calc(var(--safe-bottom)+16px)] md:px-6 md:pb-6">{children}</div>
           </m.div>
         </div>
       )}

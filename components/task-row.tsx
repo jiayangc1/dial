@@ -7,6 +7,7 @@ import type { LucideIcon } from "lucide-react";
 import { dueLabel, minutesLabel } from "@/lib/format";
 import { spring, easeOut } from "@/lib/motion";
 import { accentStyle } from "@/lib/colors";
+import { Tooltip } from "./ui/tooltip";
 import type { ClientTask } from "@/lib/client/task-store";
 import type { Course, TaskType } from "@/lib/types";
 
@@ -162,12 +163,12 @@ export function TaskRow({ task, now, actions, course }: { task: ClientTask; now:
               </span>
             )}
             {due && (
-              <span title={due.exact} className={`tabular ${due.overdue && !showDone ? "font-medium text-red" : ""}`}>
-                {due.text}
-              </span>
+              <Tooltip content={due.exact} side="top">
+                <span className={`tabular ${due.overdue && !showDone ? "font-medium text-red" : ""}`}>{due.text}</span>
+              </Tooltip>
             )}
             {Icon && (
-              <span className="flex items-center gap-1" title={task.type ?? undefined}>
+              <span className="flex items-center gap-1">
                 <Icon size={14} strokeWidth={1.5} aria-hidden="true" />
                 <span className="sr-only sm:not-sr-only">{task.type}</span>
               </span>
@@ -180,18 +181,19 @@ export function TaskRow({ task, now, actions, course }: { task: ClientTask; now:
           </span>
         </button>
         {task.calendarEvent && (
-          <a
-            href={task.calendarEvent}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="pressable mt-0.5 flex h-7 shrink-0 items-center gap-1 rounded-full border border-hairline px-2 text-label text-gray-900 hover:text-gray-1000"
-            title={task.scheduledFor ? `Scheduled ${dueLabel(task.scheduledFor, now)?.exact ?? ""}` : "On your calendar"}
-          >
-            <CalendarCheck size={12} strokeWidth={1.5} aria-hidden="true" />
-            <span className="hidden sm:inline">on calendar</span>
-            <span className="sr-only sm:hidden">On calendar</span>
-          </a>
+          <Tooltip content={task.scheduledFor ? `Scheduled ${dueLabel(task.scheduledFor, now)?.exact ?? ""}` : "On your calendar"} side="top" align="end" className="mt-0.5 flex shrink-0">
+            <a
+              href={task.calendarEvent}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="pressable flex h-7 shrink-0 items-center gap-1 rounded-full border border-hairline px-2 text-label text-gray-900 hover:text-gray-1000"
+            >
+              <CalendarCheck size={12} strokeWidth={1.5} aria-hidden="true" />
+              <span className="hidden sm:inline">on calendar</span>
+              <span className="sr-only sm:hidden">On calendar</span>
+            </a>
+          </Tooltip>
         )}
       </m.div>
     </div>
@@ -243,7 +245,7 @@ function Checkbox({
       <span className={`relative flex size-5 items-center justify-center rounded-full border-[1.5px] ${checked ? "border-accent" : inProgress ? "border-accent" : "border-gray-500"}`}>
         {/* Circular wipe: a filled disc scaling from the centre. */}
         <span className="check-disc absolute -inset-[1.5px] rounded-full bg-accent" data-on={checked} data-anim={animateIn} />
-        {inProgress && <span className="size-2 rounded-full bg-accent opacity-60" />}
+        {inProgress && <span className="absolute inset-0 m-auto size-2 rounded-full bg-accent opacity-60" aria-hidden="true" />}
         <svg width="12" height="12" viewBox="0 0 12 12" className="relative text-on-accent" aria-hidden="true">
           <path
             className="check-tick"
