@@ -1,4 +1,6 @@
 # Dial — production image (Next.js standalone server).
+# HOSTNAME=:: listens on IPv4 and IPv6; Alpine resolves "localhost" to ::1,
+# which is what the platform health check calls.
 FROM node:24-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -13,7 +15,7 @@ RUN npm run build
 
 FROM node:24-alpine AS run
 WORKDIR /app
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=::
 RUN addgroup -S dial && adduser -S dial -G dial
 COPY --from=build --chown=dial:dial /app/.next/standalone ./
 COPY --from=build --chown=dial:dial /app/.next/static ./.next/static
