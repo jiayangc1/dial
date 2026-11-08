@@ -35,7 +35,7 @@ The Notion access token is stored only inside the encrypted session cookie (a JW
 
 ## 3. Fill in your bell schedule
 
-Edit [`config/bells.ts`](config/bells.ts). **The schedule in that file is an example.** Replace it with your real one.
+Edit [`config/bells.ts`](config/bells.ts). It holds the Bellaire High School 2025–26 schedule; replace it with yours if you fork this.
 
 ```ts
 export const timezone = "America/Chicago";

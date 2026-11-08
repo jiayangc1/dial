@@ -1,12 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  Bell schedule. Edit this file; no other code needs to change.
+//  Bell schedule — Bellaire High School, 2025–2026.
+//  Edit this file; no other code needs to change.
 //
-//  • `course` must match the "Course Name" in Notion exactly.
+//  • `course` must match the "Course Name" in Notion exactly. A period whose
+//    class isn't in Notion still shows in the header ("Yearbook · 22m left")
+//    but has no task list to open.
 //  • Times are 24-hour "HH:MM" in `timezone`.
-//  • Periods without a course (lunch, advisory) can use `course: null`.
-//
-//  ⚠️  The `regular` schedule below is an EXAMPLE so the app has something to
-//      show. Replace it with your real bell times.
+//  • Blocks without a class (Cardinal Hour / lunch) use `course: null`; they
+//    count as passing time before the next class.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type Period = { period: string; start: string; end: string; course: string | null };
@@ -18,23 +19,15 @@ export const schoolEnds = "16:00";
 
 export const schedules = {
   regular: [
-    { period: "1", start: "08:30", end: "09:20", course: "Pre-Calc" },
-    { period: "2", start: "09:25", end: "10:15", course: "AP Chinese" },
-    { period: "3", start: "10:20", end: "11:10", course: "AP World History (WHAP)" },
-    { period: "Lunch", start: "11:10", end: "11:45", course: null },
-    { period: "4", start: "11:50", end: "12:40", course: "Chemistry" },
-    { period: "5", start: "12:45", end: "13:35", course: "AP Physics 1" },
-    { period: "6", start: "13:40", end: "14:30", course: "Computer Science 1A" },
-    { period: "7", start: "14:35", end: "15:25", course: "Debate" },
-  ],
-  earlyRelease: [
-    { period: "1", start: "08:30", end: "09:00", course: "Pre-Calc" },
-    { period: "2", start: "09:05", end: "09:35", course: "AP Chinese" },
-    { period: "3", start: "09:40", end: "10:10", course: "AP World History (WHAP)" },
-    { period: "4", start: "10:15", end: "10:45", course: "Chemistry" },
-    { period: "5", start: "10:50", end: "11:20", course: "AP Physics 1" },
-    { period: "6", start: "11:25", end: "11:55", course: "Computer Science 1A" },
-    { period: "7", start: "12:00", end: "12:30", course: "Debate" },
+    { period: "0", start: "07:30", end: "08:22", course: "Debate" },
+    { period: "1", start: "08:30", end: "09:21", course: "Yearbook" },
+    { period: "2", start: "09:27", end: "10:23", course: "AP Chinese" },
+    { period: "3", start: "10:29", end: "11:20", course: "Pre-Calc" },
+    { period: "4", start: "11:26", end: "12:17", course: "Chemistry" },
+    { period: "Cardinal Hour", start: "12:21", end: "13:09", course: null },
+    { period: "5", start: "13:15", end: "14:06", course: "AP World History (WHAP)" },
+    { period: "6", start: "14:12", end: "15:03", course: "Computer Science 1A" },
+    { period: "7", start: "15:09", end: "16:00", course: "English" },
   ],
 } satisfies Record<string, Period[]>;
 
@@ -53,6 +46,6 @@ export const dayType = (date: Date): DayType => "regular";
  * Use a schedule name for odd days, or "none" for holidays.
  */
 export const overrides: Record<string, DayType | "none"> = {
-  // "2026-11-25": "earlyRelease",
+  // "2026-11-25": "regular",
   // "2026-11-26": "none", // Thanksgiving
 };
