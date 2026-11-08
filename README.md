@@ -94,12 +94,30 @@ npm test   # node:test — "now" logic (periods, passing, before/after school, w
 
 To preview any time of day in the UI, add `?now=2026-11-09T08:45` (school-local time) to `/app`.
 
-## 5. Deploy to Vercel
+## 5. Deploy
 
-1. Push the repo to GitHub, then **Import** it in Vercel.
-2. Add `AUTH_NOTION_ID`, `AUTH_NOTION_SECRET`, `AUTH_SECRET`, and `NOTION_REDIRECT_URI=https://<your-domain>/api/auth/callback/notion` under Project → Settings → Environment Variables.
-3. Add that same production redirect URI to the Notion integration.
-4. Deploy. Leave `DIAL_DEMO` unset in production; demo mode refuses to run there anyway.
+### Coolify (how dial.ch3n.cc runs)
+
+The repo ships a `Dockerfile` (a Next.js standalone server on port 3000) and a `/api/health` liveness route.
+
+1. In Coolify, create an application from the GitHub repo, branch `main`, build pack **Dockerfile**, port **3000**, health check path `/api/health`. Set the domain, e.g. `https://dial.ch3n.cc`.
+2. Add these as **runtime** environment variables (not build-time):
+
+   | Variable | Value |
+   |---|---|
+   | `AUTH_SECRET` | `openssl rand -base64 33` |
+   | `AUTH_URL` | `https://dial.ch3n.cc` |
+   | `NOTION_REDIRECT_URI` | `https://dial.ch3n.cc/api/auth/callback/notion` |
+   | `AUTH_NOTION_ID` | OAuth client ID from the Notion integration |
+   | `AUTH_NOTION_SECRET` | OAuth client secret from the Notion integration |
+
+3. Add the same redirect URI to the Notion integration (step 1), then redeploy. Pushes to `main` redeploy automatically.
+
+Changing `AUTH_SECRET` signs everyone out. Leave `DIAL_DEMO` unset in production; demo mode refuses to run there anyway.
+
+### Vercel
+
+Import the repo, add the same variables under Project → Settings → Environment Variables, and add the production redirect URI to the Notion integration.
 
 ## How data flows
 
