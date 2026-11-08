@@ -1,7 +1,8 @@
 "use client";
 
+import { onWarm } from "@/lib/client/warm";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { ArrowUp, Check, ChevronDown, X } from "lucide-react";
 import type { Parsed, TokenKind, parseQuickAdd as ParseFn } from "@/lib/parse";
 import { dueLabel, minutesLabel } from "@/lib/format";
@@ -55,13 +56,8 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
   const loadParser = () => {
     if (!parse) void import("@/lib/parse").then((m) => setParse(() => m.parseQuickAdd));
   };
-  // Warm it up when the browser is idle so it's cached before you go offline.
-  useEffect(() => {
-    const w = window as Window & { requestIdleCallback?: (cb: () => void) => number };
-    const run = () => void import("@/lib/parse").then((m) => setParse(() => m.parseQuickAdd));
-    if (w.requestIdleCallback) w.requestIdleCallback(run);
-    else setTimeout(run, 1500);
-  }, []);
+  // Warm it up on first touch, or once the page is quiet, so it's cached before you go offline.
+  useEffect(() => onWarm(() => void import("@/lib/parse").then((m) => setParse(() => m.parseQuickAdd))), []);
   const day = now.toDateString();
   const parsed: Parsed | null = useMemo(
     () => (value.trim() && parse ? parse(value, { now, timezone, courses, ignore }) : null),
@@ -110,7 +106,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
 
         <AnimatePresence initial={false}>
           {chips.length > 0 && (
-            <motion.div
+            <m.div
               key="chips"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -120,7 +116,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
             >
               <AnimatePresence initial={false} mode="popLayout">
                 {chips.map((c) => (
-                  <motion.span
+                  <m.span
                     key={c.kind}
                     layout
                     initial={{ opacity: 0, scale: 0.6 }}
@@ -140,10 +136,10 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
                     >
                       <X size={12} strokeWidth={2} />
                     </button>
-                  </motion.span>
+                  </m.span>
                 ))}
               </AnimatePresence>
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
 
@@ -187,7 +183,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
               <span className="pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-nowrap text-lead text-gray-900 md:text-body" aria-hidden="true">
                 <span className="shrink-0">Add a task…&nbsp;</span>
                 <AnimatePresence mode="wait" initial={false}>
-                  <motion.span
+                  <m.span
                     key={example}
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -196,12 +192,12 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
                     className="truncate"
                   >
                     e.g. &lsquo;{EXAMPLES[example]}&rsquo;
-                  </motion.span>
+                  </m.span>
                 </AnimatePresence>
               </span>
             )}
           </div>
-          <motion.button
+          <m.button
             type="submit"
             animate={{ opacity: canSubmit ? 1 : 0.35, scale: canSubmit ? 1 : 0.9 }}
             transition={spring.ui}
@@ -211,7 +207,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
             className="pressable flex size-10 shrink-0 items-center justify-center rounded-full bg-gray-1000 text-bg"
           >
             <ArrowUp size={18} strokeWidth={1.75} />
-          </motion.button>
+          </m.button>
         </form>
       </div>
     </div>
@@ -307,9 +303,9 @@ function ClassPicker({
         >
           <span className="size-2.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
           <span className="truncate text-body font-medium text-gray-1000">{selected?.name ?? "Choose a class"}</span>
-          <motion.span animate={{ rotate: open ? 180 : 0 }} transition={spring.ui} className="flex shrink-0 text-gray-900">
+          <m.span animate={{ rotate: open ? 180 : 0 }} transition={spring.ui} className="flex shrink-0 text-gray-900">
             <ChevronDown size={16} strokeWidth={1.5} />
-          </motion.span>
+          </m.span>
         </button>
         {isNow ? (
           <span className="shrink-0 rounded-full border border-hairline-strong px-2 py-px text-label text-gray-900">{nowLabel}</span>
@@ -335,7 +331,7 @@ function ClassPicker({
         {open && (
           <>
             <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden="true" />
-            <motion.ul
+            <m.ul
               ref={list}
               role="listbox"
               tabIndex={-1}
@@ -377,7 +373,7 @@ function ClassPicker({
                   </li>
                 );
               })}
-            </motion.ul>
+            </m.ul>
           </>
         )}
       </AnimatePresence>

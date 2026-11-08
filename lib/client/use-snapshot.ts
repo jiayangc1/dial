@@ -40,11 +40,12 @@ export function clearSnapshotCache() {
  */
 export type LoadedSnapshot = Snapshot & { requestedAt?: number };
 
-export function useSnapshot() {
-  const [data, setData] = useState<LoadedSnapshot | null>(null);
-  const [sync, setSync] = useState<SyncState>({ kind: "loading" });
+export function useSnapshot(initial: LoadedSnapshot | null = null) {
+  const [data, setData] = useState<LoadedSnapshot | null>(initial);
+  const [sync, setSync] = useState<SyncState>(initial ? { kind: "idle" } : { kind: "loading" });
   const inFlight = useRef(false);
   const scenario = useRef<string | null>(null);
+  const seeded = useRef(initial);
 
   const load = useCallback(async () => {
     if (inFlight.current) return;
@@ -89,10 +90,19 @@ export function useSnapshot() {
 
   useEffect(() => {
     scenario.current = new URLSearchParams(window.location.search).get("scenario");
-    const cached = scenario.current ? null : readCache();
-    // Hydrate from cache after mount (localStorage isn't available on the server).
-    if (cached) setData(cached);
-    void load();
+    const seed = seeded.current;
+    // HTML older than 30s came from the service worker's offline copy (or bfcache).
+    const fresh = seed && Date.now() - (seed.requestedAt ?? 0) < 30_000;
+    if (seed && fresh) {
+      // Server-rendered with fresh data: just keep the offline cache warm.
+      if (!seed.demo) writeCache(seed);
+    } else {
+      // Static shell only (Notion hiccup) or stale HTML: paint from the
+      // newest snapshot we have, then fetch.
+      const cached = scenario.current ? null : readCache();
+      if (cached && (!seed || cached.fetchedAt > seed.fetchedAt)) setData(cached);
+      void load();
+    }
 
     let timer: ReturnType<typeof setInterval> | null = null;
     const start = () => {

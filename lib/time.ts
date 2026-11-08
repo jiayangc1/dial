@@ -33,7 +33,21 @@ function fmt(tz: string) {
 
 const WEEKDAYS: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 
+// formatToParts is the hot path of every due label and "now" check; the same
+// handful of instants (now, start of today, each due date) repeat constantly.
+const partsCache = new Map<string, ZonedParts>();
+
 export function zonedParts(date: Date, tz: string): ZonedParts {
+  const key = `${date.getTime()}|${tz}`;
+  const hit = partsCache.get(key);
+  if (hit) return hit;
+  const z = computeParts(date, tz);
+  if (partsCache.size > 500) partsCache.clear();
+  partsCache.set(key, z);
+  return z;
+}
+
+function computeParts(date: Date, tz: string): ZonedParts {
   const p: Record<string, string> = {};
   for (const part of fmt(tz).formatToParts(date)) p[part.type] = part.value;
   return {

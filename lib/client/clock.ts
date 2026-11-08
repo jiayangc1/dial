@@ -28,8 +28,12 @@ export function clockNow() {
   return new Date(Date.now() + getOffset());
 }
 
-export function useClock(): Date | null {
-  const [now, setNow] = useState<Date | null>(null);
+/**
+ * `initial` is the server's clock for the server-rendered first view, so the
+ * first client render matches the HTML exactly; real time takes over after mount.
+ */
+export function useClock(initial?: number | null): Date | null {
+  const [now, setNow] = useState<Date | null>(() => (initial != null ? new Date(initial) : null));
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const tick = () => {
@@ -49,13 +53,14 @@ export function useClock(): Date | null {
  * minute; re-rendering the task list every second would waste the frame
  * budget (and re-measure every layout-animated row).
  */
-export function useMinuteClock(): Date | null {
-  const [now, setNow] = useState<Date | null>(null);
+export function useMinuteClock(initial?: number | null): Date | null {
+  const [now, setNow] = useState<Date | null>(() => (initial != null ? new Date(initial) : null));
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const tick = () => {
       const d = clockNow();
-      setNow(d);
+      // Same minute as the server render: keep the object so nothing re-renders.
+      setNow((prev) => (prev && Math.floor(prev.getTime() / 60_000) === Math.floor(d.getTime() / 60_000) ? prev : d));
       timer = setTimeout(tick, 60_000 - (d.getTime() % 60_000) + 20);
     };
     tick();

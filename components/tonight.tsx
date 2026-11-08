@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { Moon } from "lucide-react";
 import { TaskRow, type RowActions } from "./task-row";
 import { compareTasks } from "@/lib/tasks";
@@ -63,13 +63,13 @@ export function Tonight({
 
       <div className="mt-3">
         {due.length === 0 ? (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={fade} className="flex items-center gap-3 px-3 py-4 text-body text-gray-900">
+          <m.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={fade} className="flex items-center gap-3 px-3 py-4 text-body text-gray-900">
             <Moon size={20} strokeWidth={1.5} /> Nothing due in the next two days. Enjoy it.
-          </motion.div>
+          </m.div>
         ) : (
           <AnimatePresence initial={false}>
             {due.map((t) => (
-              <motion.div
+              <m.div
                 key={t.key}
                 layout
                 initial={{ opacity: 0, y: 12 }}
@@ -79,7 +79,7 @@ export function Tonight({
                 className="overflow-hidden"
               >
                 <TaskRow task={t} now={now} actions={actions} course={courses.get(t.courseIds[0])} />
-              </motion.div>
+              </m.div>
             ))}
           </AnimatePresence>
         )}

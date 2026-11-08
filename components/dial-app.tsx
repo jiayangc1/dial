@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { AnimatePresence, motion, MotionConfig, useReducedMotion } from "motion/react";
+import { AnimatePresence, m, useReducedMotion } from "motion/react";
+import { MotionRoot } from "./motion-root";
 import { Header, Kbd } from "./header";
 import { ClassPanel } from "./class-panel";
 import { Tonight } from "./tonight";
@@ -11,7 +12,8 @@ import { WifiOff } from "lucide-react";
 import { ToastProvider, useToasts } from "./toasts";
 import { useSnapshot } from "@/lib/client/use-snapshot";
 import { useMinuteClock } from "@/lib/client/clock";
-import { TaskStore, type ClientTask } from "@/lib/client/task-store";
+import { onWarm } from "@/lib/client/warm";
+import { TaskStore } from "@/lib/client/task-store";
 import { accentStyle } from "@/lib/colors";
 import { bellConfig } from "@/lib/bells";
 import { focusCourse, isTonight, nowState } from "@/lib/now";
@@ -20,15 +22,13 @@ import { courseStats } from "@/lib/tasks";
 import { startOfWeek } from "@/lib/time";
 import { timezone } from "@/config/bells";
 import { fade, easeOut } from "@/lib/motion";
-import type { NewTask, TaskPatch } from "@/lib/types";
+import type { NewTask, Snapshot, TaskPatch } from "@/lib/types";
 import type { RowActions } from "./task-row";
 
 // Sheets aren't needed for first paint; load them in the background.
 const EditSheet = dynamic(() => import("./edit-sheet").then((m) => m.EditSheet), { ssr: false });
 const SearchSheet = dynamic(() => import("./search-sheet").then((m) => m.SearchSheet), { ssr: false });
 
-const EMPTY: ClientTask[] = [];
-const noopSubscribe = () => () => {};
 
 function useMediaQuery(q: string) {
   return useSyncExternalStore(
@@ -42,14 +42,17 @@ function useMediaQuery(q: string) {
   );
 }
 
-export function DialApp() {
+/** The server-rendered first view: data, the clock it was rendered at, and when it was fetched. */
+export type InitialView = { snapshot: Snapshot; now: number; requestedAt: number; scenario: string | null } | null;
+
+export function DialApp({ initial }: { initial: InitialView }) {
   const desktop = useMediaQuery("(min-width: 768px)");
   return (
-    <MotionConfig reducedMotion="user">
+    <MotionRoot>
       <ToastProvider bottomOffset={desktop ? 24 : 16}>
-        <Dial desktop={desktop} />
+        <Dial desktop={desktop} initial={initial} />
       </ToastProvider>
-    </MotionConfig>
+    </MotionRoot>
   );
 }
 
@@ -60,28 +63,28 @@ function useServiceWorker() {
   }, []);
 }
 
-function Dial({ desktop }: { desktop: boolean }) {
+function Dial({ desktop, initial }: { desktop: boolean; initial: InitialView }) {
   useServiceWorker();
-  const { data, sync, reload } = useSnapshot();
-  const now = useMinuteClock();
+  const { data, sync, reload } = useSnapshot(initial ? { ...initial.snapshot, requestedAt: initial.requestedAt } : null);
+  const now = useMinuteClock(initial?.now);
   const toasts = useToasts();
   const reduced = useReducedMotion();
 
   // ── Optimistic store ────────────────────────────────────────────────
-  const [store, setStore] = useState<TaskStore | null>(null);
+  // Seeded with the server-rendered tasks so hydration matches the HTML; the
+  // offline queue (localStorage) is replayed on top right after mount.
+  const [store] = useState(() => new TaskStore(initial?.snapshot.tasks));
+  useEffect(() => store.loadQueue(), [store]);
+  const tasks = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  const queued = useSyncExternalStore(store.subscribe, () => store.queuedCount, () => 0);
+  // The store was seeded with the first snapshot; only later polls need applying
+  // (re-applying the seed would rebuild every row right after hydration).
+  const seed = useRef(data);
   useEffect(() => {
-    // Created after mount: it reads the offline queue from localStorage.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setStore(new TaskStore());
-  }, []);
-  const tasks = useSyncExternalStore(store?.subscribe ?? noopSubscribe, store?.getSnapshot ?? (() => EMPTY), () => EMPTY);
-  const queued = useSyncExternalStore(store?.subscribe ?? noopSubscribe, () => store?.queuedCount ?? 0, () => 0);
-  useEffect(() => {
-    if (store && data) store.setServer(data.tasks, data.requestedAt);
+    if (data && data !== seed.current) store.setServer(data.tasks, data.requestedAt);
   }, [store, data]);
   const reloadSoon = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
-    if (!store) return;
     store.setEvents({
       onError: (message, retry) => toasts.push({ message: `Couldn't save: ${message}`, tone: "error", action: { label: "Retry", run: retry }, duration: 8000 }),
       onReauth: () => window.location.replace("/auth/expired"),
@@ -119,7 +122,8 @@ function Dial({ desktop }: { desktop: boolean }) {
 
   // ── Selection ───────────────────────────────────────────────────────
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [dir, setDir] = useState(1);
+  // 0 until the first class change: the first panel paints without a stagger.
+  const [dir, setDir] = useState(0);
   const selectedIndex = Math.max(0, courses.findIndex((c) => c.id === selectedId));
   const selected = courses[selectedIndex] ?? null;
 
@@ -187,6 +191,9 @@ function Dial({ desktop }: { desktop: boolean }) {
   const [editing, setEditing] = useState<{ key: string; focus?: "due" } | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const editingTask = editing ? (tasks.find((t) => t.key === editing.key) ?? null) : null;
+  // The sheets' code loads once the app is warm (first touch, or quiet), not during hydration.
+  const [sheetsWanted, setSheetsWanted] = useState(false);
+  useEffect(() => onWarm(() => setSheetsWanted(true)), []);
   const sheetOpen = !!editingTask || searchOpen;
   const addBar = useRef<ComposerHandle>(null);
 
@@ -194,14 +201,12 @@ function Dial({ desktop }: { desktop: boolean }) {
   const actions: RowActions = useMemo(
     () => ({
       onComplete: (t) => {
-        if (!store) return;
         const prev = t.status;
         store.update(t.key, { status: "Submitted" });
         toasts.push({ message: `Completed “${t.title}”`, action: { label: "Undo", run: () => store.update(t.key, { status: prev as TaskPatch["status"] }) } });
       },
-      onReopen: (t) => store?.update(t.key, { status: "Not started" }),
+      onReopen: (t) => store.update(t.key, { status: "Not started" }),
       onStatus: (t, status) => {
-        if (!store) return;
         const prev = t.status;
         store.update(t.key, { status });
         toasts.push({
@@ -210,7 +215,6 @@ function Dial({ desktop }: { desktop: boolean }) {
         });
       },
       onDelete: (t) => {
-        if (!store) return;
         store.trash(t.key);
         toasts.push({ message: `Deleted “${t.title}”`, action: { label: "Undo", run: () => store.restore(t) } });
       },
@@ -221,7 +225,6 @@ function Dial({ desktop }: { desktop: boolean }) {
 
   const onAdd = useCallback(
     (input: NewTask) => {
-      if (!store) return;
       store.create(input);
       if (input.courseId !== selectedId) {
         const c = courseById.get(input.courseId);
@@ -268,7 +271,7 @@ function Dial({ desktop }: { desktop: boolean }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [sheetOpen, selectIndex, selectedIndex, jumpNow]);
 
-  const ready = !!(data && now && state && store);
+  const ready = !!(data && now && state);
 
   // Desktop: the cursor waits in the add bar as soon as the app is ready.
   const focusedOnce = useRef(false);
@@ -281,19 +284,13 @@ function Dial({ desktop }: { desktop: boolean }) {
 
   const tonight = state ? isTonight(state) : false;
 
-  // The very first class panel renders without a stagger; later class changes animate.
-  const [introDone, setIntroDone] = useState(false);
-  useEffect(() => {
-    if (!ready || introDone) return;
-    const t = setTimeout(() => setIntroDone(true), 300);
-    return () => clearTimeout(t);
-  }, [ready, introDone]);
 
   return (
     <>
-      <motion.div
+      <m.div
         className="fixed inset-0 overflow-y-auto overflow-x-hidden bg-bg"
         style={{ ...accentStyle(selected?.color), transformOrigin: "50% 0%" }}
+        initial={false}
         animate={reduced ? undefined : { scale: sheetOpen ? 0.96 : 1, borderRadius: sheetOpen ? 12 : 0 }}
         transition={{ type: "spring", stiffness: 400, damping: 36 }}
       >
@@ -303,6 +300,7 @@ function Dial({ desktop }: { desktop: boolean }) {
           data={data}
           sync={sync}
           queued={queued}
+          initialNow={initial?.now}
           onRetry={() => void reload()}
           onSearch={() => setSearchOpen(true)}
           onNow={jumpNow}
@@ -311,22 +309,22 @@ function Dial({ desktop }: { desktop: boolean }) {
         <main className="mx-auto w-full max-w-[640px] px-4 pb-[calc(var(--safe-bottom)+96px)] md:px-6 md:pb-16">
           <AnimatePresence mode="popLayout" initial={false}>
             {!ready && sync.kind === "offline" && !data ? (
-              <motion.div key="offline" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={fade} className="flex flex-col items-center py-24 text-center">
+              <m.div key="offline" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={fade} className="flex flex-col items-center py-24 text-center">
                 <WifiOff size={24} strokeWidth={1.5} className="text-gray-900" />
                 <h2 className="mt-4 text-heading font-semibold text-gray-1000">You&rsquo;re offline</h2>
                 <p className="mt-2 max-w-[300px] text-body text-gray-900">Dial will load your classes as soon as you&rsquo;re back online.</p>
-              </motion.div>
+              </m.div>
             ) : !ready ? (
-              <motion.div key="skeleton" exit={{ opacity: 0 }} transition={fade}>
+              <m.div key="skeleton" exit={{ opacity: 0 }} transition={fade}>
                 <AppSkeleton />
-              </motion.div>
+              </m.div>
             ) : courses.length === 0 ? (
-              <motion.div key="no-classes" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={fade} className="flex flex-col items-center py-24 text-center">
+              <m.div key="no-classes" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={fade} className="flex flex-col items-center py-24 text-center">
                 <h2 className="text-heading font-semibold text-gray-1000">No enrolled classes</h2>
-                <p className="mt-2 max-w-[320px] text-body text-gray-900">Tick &ldquo;Currently enrolled&rdquo; on your classes in Notion and they&rsquo;ll appear on the wheel.</p>
-              </motion.div>
+                <p className="mt-2 max-w-[320px] text-body text-gray-900">Tick &ldquo;Currently enrolled&rdquo; on your classes in Notion and they&rsquo;ll appear here.</p>
+              </m.div>
             ) : (
-              <motion.div key="app" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={fade}>
+              <m.div key="app" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={fade}>
                 <div className="pt-4">
                   <Composer
                     ref={addBar}
@@ -352,7 +350,7 @@ function Dial({ desktop }: { desktop: boolean }) {
                 <div className="relative mt-2">
                   <AnimatePresence mode="popLayout" initial={false} custom={dir}>
                     {selected && (
-                      <motion.div
+                      <m.div
                         key={selected.id}
                         custom={dir}
                         variants={{
@@ -365,8 +363,8 @@ function Dial({ desktop }: { desktop: boolean }) {
                         exit="exit"
                         transition={{ duration: 0.18, ease: easeOut }}
                       >
-                        <ClassPanel course={selected} tasks={tasks} now={now!} actions={actions} dir={dir} instant={!introDone} onAddFirst={() => addBar.current?.focus()} />
-                      </motion.div>
+                        <ClassPanel course={selected} tasks={tasks} now={now!} actions={actions} dir={dir} instant={dir === 0} onAddFirst={() => addBar.current?.focus()} />
+                      </m.div>
                     )}
                   </AnimatePresence>
                 </div>
@@ -388,14 +386,14 @@ function Dial({ desktop }: { desktop: boolean }) {
                     </span>
                   </p>
                 )}
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
         </main>
 
-      </motion.div>
+      </m.div>
 
-      {now && (
+      {now && (sheetsWanted || editing || searchOpen) && (
         <>
           <EditSheet
             task={editingTask}
@@ -403,7 +401,7 @@ function Dial({ desktop }: { desktop: boolean }) {
             focus={editing?.focus}
             now={now}
             onClose={() => setEditing(null)}
-            onSave={(t, patch) => store?.update(t.key, patch)}
+            onSave={(t, patch) => store.update(t.key, patch)}
             onDelete={actions.onDelete}
           />
           <SearchSheet
@@ -428,7 +426,7 @@ function Dial({ desktop }: { desktop: boolean }) {
   );
 }
 
-/** Same geometry as the real screen: wheel card + neighbours, dots, rows. */
+/** Same geometry as the real screen: entry box, then rows. */
 function AppSkeleton() {
   return (
     <div className="pt-4" aria-busy="true" aria-label="Loading your classes">

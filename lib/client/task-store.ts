@@ -57,12 +57,22 @@ export class TaskStore {
   private snapshot: ClientTask[] = [];
   events: StoreEvents = { onError: () => {}, onReauth: () => {}, onSynced: () => {} };
 
-  constructor() {
+  /**
+   * `initial` is the server-rendered snapshot, so the first client render
+   * matches the HTML. The offline queue lives in localStorage, which the
+   * server can't see: call `loadQueue()` after mount.
+   */
+  constructor(initial: Task[] = []) {
+    this.server = initial.map((t) => this.withKey(t));
+    this.recompute();
+  }
+
+  loadQueue() {
     try {
       const raw = localStorage.getItem(QUEUE_KEY);
-      if (raw) this.ops = (JSON.parse(raw) as Op[]).map((o) => ({ ...o, queued: true }));
+      if (raw) this.ops = [...(JSON.parse(raw) as Op[]).map((o) => ({ ...o, queued: true })), ...this.ops.filter((o) => !o.queued)];
     } catch {}
-    this.recompute();
+    if (this.ops.length) this.recompute();
   }
 
   setEvents(e: StoreEvents) {

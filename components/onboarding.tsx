@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { AnimatePresence, motion, MotionConfig } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
+import { MotionRoot } from "./motion-root";
 import { Check, TriangleAlert, ArrowRight, FileText } from "lucide-react";
 import { Mark } from "./logo";
 import { Spinner } from "./spinner";
@@ -26,7 +27,7 @@ export function Onboarding() {
   };
 
   return (
-    <MotionConfig reducedMotion="user">
+    <MotionRoot>
       <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-4 pb-[calc(var(--safe-bottom)+16px)] pt-[calc(var(--safe-top)+16px)] md:justify-center md:py-16">
         <header className="flex h-14 items-center justify-between md:mb-8">
           <Mark size={24} className="text-gray-1000" />
@@ -35,7 +36,7 @@ export function Onboarding() {
 
         <div className="relative flex flex-1 flex-col md:flex-none">
           <AnimatePresence mode="wait" custom={dir} initial={false}>
-            <motion.section
+            <m.section
               key={step}
               custom={dir}
               variants={{
@@ -55,11 +56,11 @@ export function Onboarding() {
               </p>
               {step === 1 && <PickTracker onDone={() => go(2)} />}
               {step === 2 && <ConfirmBells onBack={() => go(1)} />}
-            </motion.section>
+            </m.section>
           </AnimatePresence>
         </div>
       </main>
-    </MotionConfig>
+    </MotionRoot>
   );
 }
 
@@ -68,7 +69,7 @@ function StepDots({ step }: { step: number }) {
     <ol className="flex items-center gap-2" aria-label={`Step ${step + 1} of 3`}>
       {STEPS.map((label, i) => (
         <li key={label} aria-current={i === step ? "step" : undefined} className="flex items-center">
-          <motion.span
+          <m.span
             className="block h-1.5 rounded-full bg-gray-1000"
             initial={false}
             animate={{ width: i === step ? 20 : 6, opacity: i <= step ? 1 : 0.2 }}
@@ -154,9 +155,9 @@ function PickTracker({ onDone }: { onDone: () => void }) {
                   >
                     <AnimatePresence>
                       {on && (
-                        <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={spring.ui}>
+                        <m.span initial={{ scale: 0 }} animate={{ scale: 1 }} exit={{ scale: 0 }} transition={spring.ui}>
                           <Check size={12} strokeWidth={2.5} className="text-bg" />
-                        </motion.span>
+                        </m.span>
                       )}
                     </AnimatePresence>
                   </span>
@@ -276,7 +277,7 @@ function ErrorLine({ message }: { message: string | null }) {
   return (
     <AnimatePresence>
       {message && (
-        <motion.p
+        <m.p
           role="alert"
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
@@ -286,7 +287,7 @@ function ErrorLine({ message }: { message: string | null }) {
         >
           <TriangleAlert size={16} strokeWidth={1.5} className="mt-px shrink-0" />
           {message}
-        </motion.p>
+        </m.p>
       )}
     </AnimatePresence>
   );

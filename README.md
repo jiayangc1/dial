@@ -104,7 +104,7 @@ To preview any time of day in the UI, add `?now=2026-11-09T08:45` (school-local 
 ## How data flows
 
 - **Discovery:** after sign-in, Dial searches the shared pages for the two data sources by their schema: Assignments (a "Course" relation and a "Status" status property) and Courses (a "Currently enrolled" checkbox). It saves their IDs in an httpOnly cookie, so nothing is hard-coded.
-- **Reads:** `GET /api/data` makes one paginated query for open tasks plus tasks completed this week, and one query for enrolled courses. The two run in parallel. The client paints from its last cached snapshot first, then polls every 60 seconds while the tab is visible.
+- **Reads:** one paginated query for open tasks plus tasks completed this week, and one query for enrolled courses, run in parallel. `/app` does this on the server, so the first view arrives as finished HTML with your tasks already in it. After that, the client polls `GET /api/data` every 60 seconds while the tab is visible. Offline, the installed app opens from the service worker and paints from the last snapshot cached in the browser.
 - **Rate limits:** each token gets a queue that spaces requests 340ms apart (about 3 per second). The SDK retries 429s with backoff.
 - **Bot-owned fields:** "Scheduled For" and "Calendar Event" are read-only. Dial shows them and never writes them.
 - **Expired access:** if Notion answers 401 or 403, Dial clears the session and returns you to sign-in with a notice.

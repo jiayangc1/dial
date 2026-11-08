@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, m } from "motion/react";
 import { LogOut, Search, TriangleAlert, WifiOff, CloudUpload } from "lucide-react";
 import { Mark } from "./logo";
 import { Odometer, formatCountdown } from "./odometer";
@@ -11,9 +11,10 @@ import { signOutAction } from "@/app/actions";
 import { clearSnapshotCache, type SyncState } from "@/lib/client/use-snapshot";
 import type { NowState } from "@/lib/now";
 import { useClock } from "@/lib/client/clock";
+import { timezone } from "@/config/bells";
 import type { Course, Snapshot } from "@/lib/types";
 
-const timeFmt = (d: Date) => d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Chicago" });
+const timeFmt = (d: Date) => d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: timezone });
 
 export function Header({
   state,
@@ -24,7 +25,9 @@ export function Header({
   onRetry,
   onSearch,
   onNow,
+  initialNow,
 }: {
+  initialNow?: number | null;
   state: NowState | null;
   courseByName: Map<string, Course>;
   data: Snapshot | null;
@@ -35,7 +38,7 @@ export function Header({
   onNow: () => void;
 }) {
   // Only the header ticks every second (countdown + progress bar).
-  const now = useClock();
+  const now = useClock(initialNow);
   let progress: number | null = null;
   let urgent = false;
   let accentCourse: Course | undefined;
@@ -55,9 +58,9 @@ export function Header({
         </a>
         <button onClick={onNow} className="pressable -ml-1 min-w-0 flex-1 rounded-md py-1 text-left" title="Jump to now (.)">
           <AnimatePresence mode="wait" initial={false}>
-            <motion.div key={state?.kind ?? "loading"} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={fade}>
+            <m.div key={state?.kind ?? "loading"} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={fade}>
               <Status state={state} now={now} />
-            </motion.div>
+            </m.div>
           </AnimatePresence>
         </button>
         <div className="flex shrink-0 items-center">
@@ -78,26 +81,13 @@ export function Header({
 }
 
 function ProgressBar({ progress, urgent }: { progress: number | null; urgent: boolean }) {
-  const reduced = useReducedMotion();
+  // Plain CSS: this updates every second, and a CSS transition costs nothing on the main thread.
+  if (progress === null) return null;
   return (
-    <AnimatePresence>
-      {progress !== null && (
-        <motion.div
-          key="bar"
-          className="absolute inset-x-0 -top-px h-[2px] origin-left bg-accent"
-          initial={{ opacity: 0, scaleX: progress }}
-          animate={{
-            scaleX: progress,
-            opacity: urgent && !reduced ? [1, 0.45, 1] : 1,
-          }}
-          exit={{ opacity: 0 }}
-          transition={{
-            scaleX: { duration: 0.9, ease: [0.2, 0.8, 0.2, 1] },
-            opacity: urgent && !reduced ? { duration: 1.6, repeat: Infinity, ease: "easeInOut" } : fade,
-          }}
-        />
-      )}
-    </AnimatePresence>
+    <div
+      className={`period-bar absolute inset-x-0 -top-px h-[2px] origin-left bg-accent ${urgent ? "period-bar-urgent" : ""}`}
+      style={{ transform: `scaleX(${Math.min(1, Math.max(0, progress))})` }}
+    />
   );
 }
 
@@ -150,7 +140,7 @@ function SyncBadge({ sync, queued, onRetry }: { sync: SyncState; queued: number;
   return (
     <AnimatePresence initial={false}>
       {show && (
-        <motion.button
+        <m.button
           key={show}
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -176,7 +166,7 @@ function SyncBadge({ sync, queued, onRetry }: { sync: SyncState; queued: number;
               <TriangleAlert size={12} strokeWidth={1.5} className="text-red" /> <span className="hidden sm:inline">Notion error ·</span> Retry
             </>
           )}
-        </motion.button>
+        </m.button>
       )}
     </AnimatePresence>
   );
@@ -205,7 +195,7 @@ function AccountMenu({ data }: { data: Snapshot | null }) {
         {open && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden="true" />
-            <motion.div
+            <m.div
               role="menu"
               initial={{ opacity: 0, scale: 0.96, y: -4 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -220,14 +210,14 @@ function AccountMenu({ data }: { data: Snapshot | null }) {
               </div>
               <div className="hidden px-3 pb-2 pt-1 text-label text-gray-900 md:block">
                 <Kbd>n</Kbd> new · <Kbd>←</Kbd>
-                <Kbd>→</Kbd> spin · <Kbd>.</Kbd> now · <Kbd>/</Kbd> search
+                <Kbd>→</Kbd> class · <Kbd>.</Kbd> now · <Kbd>/</Kbd> search
               </div>
               <form action={signOutAction} onSubmit={clearSnapshotCache}>
                 <button role="menuitem" className="pressable flex h-11 w-full items-center gap-2 rounded-card px-3 text-body text-gray-1000 hover:bg-gray-100">
                   <LogOut size={16} strokeWidth={1.5} /> Sign out
                 </button>
               </form>
-            </motion.div>
+            </m.div>
           </>
         )}
       </AnimatePresence>

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion, useDragControls } from "motion/react";
+import { AnimatePresence, m, useDragControls } from "motion/react";
 import { spring, fade } from "@/lib/motion";
 
 /**
@@ -69,7 +69,7 @@ export function Sheet({
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-40 flex items-end justify-center md:items-center" style={style}>
-          <motion.div
+          <m.div
             className="absolute inset-0 bg-black/40"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -78,7 +78,7 @@ export function Sheet({
             onClick={onClose}
             aria-hidden="true"
           />
-          <motion.div
+          <m.div
             ref={panel}
             role="dialog"
             aria-modal="true"
@@ -106,7 +106,7 @@ export function Sheet({
               <span className="h-1 w-9 rounded-full bg-gray-500" />
             </div>
             <div className="max-h-[calc(92dvh-24px)] overflow-y-auto overscroll-contain px-4 pb-[calc(var(--safe-bottom)+16px)] md:px-6 md:pb-6">{children}</div>
-          </motion.div>
+          </m.div>
         </div>
       )}
     </AnimatePresence>,

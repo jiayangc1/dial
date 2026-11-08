@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { animate, motion, useMotionValue, useReducedMotion, useTransform } from "motion/react";
+import { animate, m, useMotionValue, useReducedMotion, useTransform } from "motion/react";
 import { BookOpen, Brain, CalendarCheck, CalendarDays, Check, ClipboardCheck, NotebookPen, Send, Shapes, CircleDashed, Timer, Trash2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { dueLabel, minutesLabel } from "@/lib/format";
@@ -42,6 +42,9 @@ export function TaskRow({ task, now, actions, course }: { task: ClientTask; now:
   const [completing, setCompleting] = useState(false);
   const [trayOpen, setTrayOpen] = useState(false);
   const [armed, setArmed] = useState<"complete" | "tray" | null>(null);
+  // The swipe layers (complete fill, action tray) mount on first touch: a
+  // list of rows hydrates with far less work, and nobody sees them until a drag.
+  const [live, setLive] = useState(false);
   const dragging = useRef(false);
   const x = useMotionValue(0);
   const done = task.statusGroup === "complete";
@@ -78,23 +81,31 @@ export function TaskRow({ task, now, actions, course }: { task: ClientTask; now:
   const showDone = done || completing;
 
   return (
-    <div className="relative overflow-hidden rounded-card" style={course ? accentStyle(course.color) : undefined}>
-      {/* Right swipe: complete. The accent fills in progressively behind the row. */}
-      <motion.div aria-hidden="true" className="absolute inset-0 flex items-center rounded-card bg-accent pl-5" style={{ opacity: completeOpacity }}>
-        <motion.span animate={{ scale: armed === "complete" ? 1.25 : 0.85 }} transition={spring.ui} className="text-on-accent">
-          <Check size={20} strokeWidth={2} />
-        </motion.span>
-      </motion.div>
+    <div
+      className="relative overflow-hidden rounded-card"
+      style={course ? accentStyle(course.color) : undefined}
+      onPointerDownCapture={live ? undefined : () => setLive(true)}
+    >
+      {live && (
+        <>
+          {/* Right swipe: complete. The accent fills in progressively behind the row. */}
+          <m.div aria-hidden="true" className="absolute inset-0 flex items-center rounded-card bg-accent pl-5" style={{ opacity: completeOpacity }}>
+            <m.span animate={{ scale: armed === "complete" ? 1.25 : 0.85 }} transition={spring.ui} className="text-on-accent">
+              <Check size={20} strokeWidth={2} />
+            </m.span>
+          </m.div>
 
-      {/* Left swipe: quick actions tray. */}
-      <motion.div className="absolute inset-y-0 right-0 flex" style={{ opacity: trayOpacity, width: TRAY }} aria-hidden={!trayOpen}>
-        <TrayButton icon={Timer} label="Doing" onClick={() => (closeTray(), actions.onStatus(task, "In progress"))} tabbable={trayOpen} />
-        <TrayButton icon={Send} label="Submit" onClick={() => (closeTray(), actions.onStatus(task, "Need to Submit"))} tabbable={trayOpen} />
-        <TrayButton icon={CalendarDays} label="Due" onClick={() => (closeTray(), actions.onOpen(task, "due"))} tabbable={trayOpen} />
-        <TrayButton icon={Trash2} label="Delete" danger onClick={() => (closeTray(), actions.onDelete(task))} tabbable={trayOpen} />
-      </motion.div>
+          {/* Left swipe: quick actions tray. */}
+          <m.div className="absolute inset-y-0 right-0 flex" style={{ opacity: trayOpacity, width: TRAY }} aria-hidden={!trayOpen}>
+            <TrayButton icon={Timer} label="Doing" onClick={() => (closeTray(), actions.onStatus(task, "In progress"))} tabbable={trayOpen} />
+            <TrayButton icon={Send} label="Submit" onClick={() => (closeTray(), actions.onStatus(task, "Need to Submit"))} tabbable={trayOpen} />
+            <TrayButton icon={CalendarDays} label="Due" onClick={() => (closeTray(), actions.onOpen(task, "due"))} tabbable={trayOpen} />
+            <TrayButton icon={Trash2} label="Delete" danger onClick={() => (closeTray(), actions.onDelete(task))} tabbable={trayOpen} />
+          </m.div>
+        </>
+      )}
 
-      <motion.div
+      <m.div
         drag={completing ? false : "x"}
         dragDirectionLock
         dragMomentum={false}
@@ -182,7 +193,7 @@ export function TaskRow({ task, now, actions, course }: { task: ClientTask; now:
             <span className="sr-only sm:hidden">On calendar</span>
           </a>
         )}
-      </motion.div>
+      </m.div>
     </div>
   );
 }
@@ -231,24 +242,20 @@ function Checkbox({
     >
       <span className={`relative flex size-5 items-center justify-center rounded-full border-[1.5px] ${checked ? "border-accent" : inProgress ? "border-accent" : "border-gray-500"}`}>
         {/* Circular wipe: a filled disc scaling from the centre. */}
-        <motion.span
-          className="absolute -inset-[1.5px] rounded-full bg-accent"
-          initial={false}
-          animate={{ scale: checked ? 1 : 0, opacity: checked ? 1 : 0 }}
-          transition={animateIn && !reduced ? { ...spring.ui, stiffness: 500 } : { duration: 0.15 }}
-        />
+        <span className="check-disc absolute -inset-[1.5px] rounded-full bg-accent" data-on={checked} data-anim={animateIn} />
         {inProgress && <span className="size-2 rounded-full bg-accent opacity-60" />}
         <svg width="12" height="12" viewBox="0 0 12 12" className="relative text-on-accent" aria-hidden="true">
-          <motion.path
+          <path
+            className="check-tick"
+            data-on={checked}
+            data-anim={animateIn}
+            pathLength={1}
             d="M2.5 6.2 5 8.5l4.5-5"
             fill="none"
             stroke="currentColor"
             strokeWidth="1.75"
             strokeLinecap="round"
             strokeLinejoin="round"
-            initial={false}
-            animate={{ pathLength: checked ? 1 : 0, opacity: checked ? 1 : 0 }}
-            transition={animateIn && !reduced ? { pathLength: { delay: 0.1, duration: 0.25, ease: easeOut }, opacity: { duration: 0.05, delay: 0.1 } } : { duration: 0 }}
           />
         </svg>
       </span>
@@ -267,7 +274,7 @@ function Burst() {
   return (
     <span className="pointer-events-none absolute inset-0" aria-hidden="true">
       {parts.map((p, i) => (
-        <motion.span
+        <m.span
           key={i}
           className="absolute left-1/2 top-1/2 rounded-full bg-accent"
           style={{ width: p.s, height: p.s, marginLeft: -p.s / 2, marginTop: -p.s / 2 }}

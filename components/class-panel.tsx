@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { ChevronRight, Plus } from "lucide-react";
 import { TaskRow, type RowActions } from "./task-row";
 import { groupTasks } from "@/lib/tasks";
@@ -58,16 +58,16 @@ export function ClassPanel({ course, tasks, now, actions, onAddFirst, dir, insta
             aria-expanded={showDone}
             className="pressable flex h-11 items-center gap-1.5 rounded-card px-3 text-small text-gray-900 hover:text-gray-1000"
           >
-            <motion.span animate={{ rotate: showDone ? 90 : 0 }} transition={spring.ui} className="flex">
+            <m.span animate={{ rotate: showDone ? 90 : 0 }} transition={spring.ui} className="flex">
               <ChevronRight size={16} strokeWidth={1.5} />
-            </motion.span>
+            </m.span>
             Done this week <span className="font-mono tabular text-gray-900">· {g.done.length}</span>
           </button>
           <AnimatePresence initial={false}>
             {showDone && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={fade}>
+              <m.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={fade}>
                 <AnimatePresence initial={false}>{g.done.map((t) => <Row key={t.key} task={t} now={now} actions={actions} index={0} dir={0} mounted={mounted} />)}</AnimatePresence>
-              </motion.div>
+              </m.div>
             )}
           </AnimatePresence>
         </div>
@@ -81,7 +81,7 @@ function Group({ label, count, children }: { label: string; count: number; child
     <section aria-label={label}>
       <AnimatePresence initial={false}>
         {count > 0 && (
-          <motion.h3
+          <m.h3
             key="h"
             layout="position"
             initial={{ opacity: 0 }}
@@ -91,7 +91,7 @@ function Group({ label, count, children }: { label: string; count: number; child
             className="px-3 pb-1 pt-4 text-label uppercase tracking-[0.04em] text-gray-900"
           >
             {label} <span className="font-mono tabular text-gray-900">· {count}</span>
-          </motion.h3>
+          </m.h3>
         )}
       </AnimatePresence>
       <AnimatePresence initial={true}>{children}</AnimatePresence>
@@ -122,7 +122,7 @@ function Row({
   const added = mounted.current;
   const initial = reduced ? { opacity: 0 } : added ? { opacity: 0, y: 28, scale: 0.96 } : { opacity: 0, x: 12 * dir };
   return (
-    <motion.div
+    <m.div
       layout={!reduced}
       initial={instant && !added ? false : initial}
       animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
@@ -131,7 +131,7 @@ function Row({
       className="overflow-hidden"
     >
       <TaskRow task={task} now={now} actions={actions} />
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -182,10 +182,10 @@ function AllDone({ course, now }: { course: Course; now: Date }) {
   return (
     <div className="relative flex flex-col items-center px-6 py-12 text-center">
       {celebrate && !reduced && <Confetti />}
-      <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={spring.ui} className="relative">
+      <m.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={spring.ui} className="relative">
         <svg width="56" height="56" viewBox="0 0 56 56" aria-hidden="true">
           <circle cx="28" cy="28" r="26" fill="color-mix(in srgb, var(--accent) 14%, transparent)" />
-          <motion.path
+          <m.path
             d="M18 28.5 25 35.5 39 21"
             fill="none"
             stroke="var(--accent)"
@@ -197,7 +197,7 @@ function AllDone({ course, now }: { course: Course; now: Date }) {
             transition={{ duration: 0.4, delay: 0.15, ease: easeOut }}
           />
         </svg>
-      </motion.div>
+      </m.div>
       <h3 className="mt-4 text-heading font-semibold tracking-[-0.01em] text-gray-1000">Nothing due in {course.name} 🎉</h3>
       <p className="mt-1 text-body text-gray-900">Everything&rsquo;s done for now.</p>
     </div>
@@ -213,7 +213,7 @@ function Confetti() {
   return (
     <div className="pointer-events-none absolute left-1/2 top-[76px]" aria-hidden="true">
       {bits.map((b, i) => (
-        <motion.span
+        <m.span
           key={i}
           className="absolute block rounded-[1px] bg-accent"
           style={{ width: b.w, height: b.h, opacity: b.o }}

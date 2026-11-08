@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { TriangleAlert } from "lucide-react";
 import { spring } from "@/lib/motion";
 
@@ -63,7 +63,7 @@ function ToastView({ toast, onDone }: { toast: Toast; onDone: () => void }) {
   }, [paused, onDone]);
 
   return (
-    <motion.div
+    <m.div
       layout
       role={toast.tone === "error" ? "alert" : "status"}
       initial={{ opacity: 0, y: 16, scale: 0.96 }}
@@ -96,13 +96,13 @@ function ToastView({ toast, onDone }: { toast: Toast; onDone: () => void }) {
         )}
       </div>
       {/* Countdown bar */}
-      <motion.div
+      <m.div
         aria-hidden="true"
         className="absolute inset-x-0 bottom-0 h-[2px] origin-left bg-gray-1000/30"
         initial={{ scaleX: 1 }}
         animate={{ scaleX: paused ? undefined : 0 }}
         transition={{ duration: reduced ? 0 : duration / 1000, ease: [0.4, 0, 0.6, 1] }}
       />
-    </motion.div>
+    </m.div>
   );
 }
