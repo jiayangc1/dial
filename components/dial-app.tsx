@@ -1,16 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { MotionRoot } from "./motion-root";
-import { Header, Kbd } from "./header";
+import { Header } from "./header";
+import { Kbd } from "./ui/controls";
 import { ClassPanel } from "./class-panel";
 import { Tonight } from "./tonight";
 import { Composer, type ComposerHandle } from "./composer";
 import dynamic from "next/dynamic";
 import { WifiOff } from "lucide-react";
 import { ToastProvider, useToasts } from "./toasts";
-import { useSnapshot } from "@/lib/client/use-snapshot";
+import { clearSnapshotCache, useSnapshot } from "@/lib/client/use-snapshot";
+import { isMac } from "@/lib/client/platform";
+import { signOutAction } from "@/app/actions";
 import { useMinuteClock } from "@/lib/client/clock";
 import { onWarm } from "@/lib/client/warm";
 import { TaskStore } from "@/lib/client/task-store";
@@ -27,8 +30,7 @@ import type { RowActions } from "./task-row";
 
 // Sheets aren't needed for first paint; load them in the background.
 const EditSheet = dynamic(() => import("./edit-sheet").then((m) => m.EditSheet), { ssr: false });
-const SearchSheet = dynamic(() => import("./search-sheet").then((m) => m.SearchSheet), { ssr: false });
-
+const CommandMenu = dynamic(() => import("./command-menu").then((m) => m.CommandMenu), { ssr: false });
 
 function useMediaQuery(q: string) {
   return useSyncExternalStore(
@@ -189,12 +191,12 @@ function Dial({ desktop, initial }: { desktop: boolean; initial: InitialView }) 
 
   // ── Sheets ──────────────────────────────────────────────────────────
   const [editing, setEditing] = useState<{ key: string; focus?: "due" } | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [cmdOpen, setCmdOpen] = useState(false);
   const editingTask = editing ? (tasks.find((t) => t.key === editing.key) ?? null) : null;
   // The sheets' code loads once the app is warm (first touch, or quiet), not during hydration.
   const [sheetsWanted, setSheetsWanted] = useState(false);
   useEffect(() => onWarm(() => setSheetsWanted(true)), []);
-  const sheetOpen = !!editingTask || searchOpen;
+  const sheetOpen = !!editingTask;
   const addBar = useRef<ComposerHandle>(null);
 
   // ── Actions (all optimistic) ────────────────────────────────────────
@@ -244,10 +246,17 @@ function Dial({ desktop, initial }: { desktop: boolean; initial: InitialView }) 
     [store, selectedId, courseById, toasts],
   );
 
-  // ── Keyboard shortcuts: n, ←/→, ., / ───────────────────────────────
+  // ── Keyboard shortcuts: ⌘K, n, ←/→, ., / ────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey || sheetOpen) return;
+      // ⌘K / Ctrl+K works everywhere, even mid-typing in the add bar.
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") {
+        if (sheetOpen) return;
+        e.preventDefault();
+        setCmdOpen((o) => !o);
+        return;
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey || sheetOpen || cmdOpen) return;
       const el = e.target as HTMLElement;
       if (el.closest("input, textarea, select, [contenteditable=true], [role=listbox]")) return;
       if (e.key === "n") {
@@ -264,12 +273,12 @@ function Dial({ desktop, initial }: { desktop: boolean; initial: InitialView }) 
         jumpNow();
       } else if (e.key === "/") {
         e.preventDefault();
-        setSearchOpen(true);
+        setCmdOpen(true);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [sheetOpen, selectIndex, selectedIndex, jumpNow]);
+  }, [sheetOpen, cmdOpen, selectIndex, selectedIndex, jumpNow]);
 
   const ready = !!(data && now && state);
 
@@ -302,7 +311,7 @@ function Dial({ desktop, initial }: { desktop: boolean; initial: InitialView }) 
           queued={queued}
           initialNow={initial?.now}
           onRetry={() => void reload()}
-          onSearch={() => setSearchOpen(true)}
+          onSearch={() => setCmdOpen(true)}
           onNow={jumpNow}
         />
 
@@ -370,19 +379,26 @@ function Dial({ desktop, initial }: { desktop: boolean; initial: InitialView }) 
                 </div>
 
                 {desktop && (
-                  <p className="mt-8 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-label text-gray-900">
-                    <span>
-                      <Kbd>n</Kbd> new task
+                  <p className="mt-10 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-label text-gray-900">
+                    <span className="flex items-center gap-1.5">
+                      <Kbd>N</Kbd> new task
                     </span>
-                    <span>
-                      <Kbd>←</Kbd>
-                      <Kbd>→</Kbd> switch class
+                    <span className="flex items-center gap-1.5">
+                      <span className="flex gap-0.5">
+                        <Kbd>←</Kbd>
+                        <Kbd>→</Kbd>
+                      </span>
+                      switch class
                     </span>
-                    <span>
+                    <span className="flex items-center gap-1.5">
                       <Kbd>.</Kbd> now
                     </span>
-                    <span>
-                      <Kbd>/</Kbd> search
+                    <span className="flex items-center gap-1.5">
+                      <span className="flex gap-0.5">
+                        <Kbd>{isMac() ? "⌘" : "Ctrl"}</Kbd>
+                        <Kbd>K</Kbd>
+                      </span>
+                      search &amp; commands
                     </span>
                   </p>
                 )}
@@ -393,7 +409,7 @@ function Dial({ desktop, initial }: { desktop: boolean; initial: InitialView }) 
 
       </m.div>
 
-      {now && (sheetsWanted || editing || searchOpen) && (
+      {now && (sheetsWanted || editing || cmdOpen) && (
         <>
           <EditSheet
             task={editingTask}
@@ -404,20 +420,26 @@ function Dial({ desktop, initial }: { desktop: boolean; initial: InitialView }) 
             onSave={(t, patch) => store.update(t.key, patch)}
             onDelete={actions.onDelete}
           />
-          <SearchSheet
-            open={searchOpen}
-            onClose={() => setSearchOpen(false)}
+          <CommandMenu
+            open={cmdOpen}
+            onClose={() => setCmdOpen(false)}
             tasks={tasks}
-            courses={courseById}
+            courses={courses}
+            selectedId={selected?.id ?? null}
+            nowId={nowIndex !== null ? courses[nowIndex].id : null}
             now={now}
-            onPick={(t) => {
-              setSearchOpen(false);
+            onPickTask={(t) => {
               const c = t.courseIds.find((id) => courseById.has(id));
-              if (c) {
-                setDir(1);
-                setSelectedId(c);
-              }
-              setTimeout(() => setEditing({ key: t.key }), 260);
+              if (c && c !== selectedId) selectId(c);
+              setEditing({ key: t.key });
+            }}
+            onCompleteTask={actions.onComplete}
+            onSelectClass={selectId}
+            onNewTask={(text) => addBar.current?.focus(text)}
+            onJumpNow={jumpNow}
+            onSignOut={() => {
+              clearSnapshotCache();
+              startTransition(() => signOutAction());
             }}
           />
         </>

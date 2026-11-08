@@ -33,7 +33,20 @@ Dial is opened dozens of times a day, for a few seconds at a time, often one-han
 
 ### Desktop (1440)
 
-Same single column at `max-width: 640px`, centred. The input is auto-focused. Keyboard hints (`n`, `←` `→`, `.`, `/`) sit in the footer at 12px.
+Same single column at `max-width: 640px`, centred. The input is auto-focused. Keyboard hints (`N`, `←` `→`, `.`, `⌘K`) sit in the footer at 12px.
+
+### Command menu (⌘K)
+
+One box for everything, opened with `⌘K` / `Ctrl+K` from anywhere (including mid-typing in the add bar), `/` when not typing, or the search field in the header (an icon on phones).
+
+- Empty: **Actions** (new task in the selected class, jump to now), **Upcoming** (next 6 open tasks), **Classes**, **Account**.
+- Typing: **Tasks** (word-start matches first, completed last), **Classes**, then "Add “…” to <class>", which drops the text into the add bar so the parser still runs.
+- `↑` `↓` (or `Ctrl+N` / `Ctrl+P`) move, `↵` opens, `⌘↵` completes the highlighted task, `Esc` clears the query, then closes.
+- Panel sits at 14vh on desktop, top of the screen on phones (clear of the keyboard), with a "Cancel" button in place of the `Esc` hint.
+
+### Controls
+
+No native form widgets in the app. Dates use a themed calendar popover (arrow keys, PageUp/PageDown, Home/End), times a 15-minute list with hour type-ahead, minutes a −/+ stepper, and every `title` tooltip is a themed `Tooltip`. Segmented controls slide a single thumb by transform.
 
 ## 2. Type scale (Geist Sans / Geist Mono)
 

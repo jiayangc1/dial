@@ -13,7 +13,7 @@ import type { Course, NewTask } from "@/lib/types";
 
 const EXAMPLES = ["ws 2.4 fri 30m", "unit 3 quiz tue", "read ch 5 tmrw 45m", "lab report @chem nov 20", "study for test thu 1h !"];
 
-export type ComposerHandle = { focus: () => void; openPicker: () => void };
+export type ComposerHandle = { focus: (text?: string) => void; openPicker: () => void };
 
 type Props = {
   courses: Course[];
@@ -41,7 +41,13 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
   const input = useRef<HTMLInputElement>(null);
 
   useImperativeHandle(ref, () => ({
-    focus: () => input.current?.focus(),
+    focus: (text) => {
+      if (text !== undefined) {
+        setValue(text);
+        setIgnore(new Set());
+      }
+      input.current?.focus();
+    },
     openPicker: () => setPickerOpen(true),
   }));
 
@@ -88,7 +94,7 @@ export const Composer = forwardRef<ComposerHandle, Props>(function Composer({ co
   return (
     <div className="relative" style={accentStyle(target?.color)}>
       <div
-        className={`surface relative rounded-sheet transition-[box-shadow] duration-150 ${focused ? "shadow-[0_0_0_2px_var(--accent)]" : ""}`}
+        className={`surface composer relative rounded-sheet ${focused ? "composer-focus" : ""}`}
       >
         <ClassPicker
           courses={courses}
@@ -343,7 +349,7 @@ function ClassPicker({
               exit={{ opacity: 0, y: -4, scale: 0.98, transition: { duration: 0.12 } }}
               transition={spring.ui}
               style={{ transformOrigin: "top left" }}
-              className="absolute inset-x-1.5 top-[calc(100%-4px)] z-40 bg-[color-mix(in_srgb,var(--bg)_96%,transparent)] shadow-[0_16px_40px_-12px_rgba(0,0,0,0.5)] backdrop-blur-xl max-h-[min(380px,60dvh)] overflow-y-auto rounded-sheet border border-hairline-strong p-1 outline-none"
+              className="menu-surface scroll-thin absolute inset-x-1.5 top-[calc(100%-4px)] z-40 max-h-[min(380px,60dvh)] overflow-y-auto rounded-sheet p-1 outline-none"
             >
               {courses.map((c, i) => {
                 const count = openCounts.get(c.id) ?? 0;

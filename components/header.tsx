@@ -1,10 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { AnimatePresence, m } from "motion/react";
-import { LogOut, Search, TriangleAlert, WifiOff, CloudUpload } from "lucide-react";
+import { Command, LogOut, Search, TriangleAlert, WifiOff, CloudUpload } from "lucide-react";
 import { Mark } from "./logo";
 import { Odometer, formatCountdown } from "./odometer";
+import { Popover } from "./ui/popover";
+import { Tooltip } from "./ui/tooltip";
+import { Kbd } from "./ui/controls";
+import { isMac } from "@/lib/client/platform";
 import { accentStyle } from "@/lib/colors";
 import { spring, fade } from "@/lib/motion";
 import { signOutAction } from "@/app/actions";
@@ -14,6 +18,7 @@ import { useClock } from "@/lib/client/clock";
 import { timezone } from "@/config/bells";
 import type { Course, Snapshot } from "@/lib/types";
 
+const noopSubscribe = () => () => {};
 const timeFmt = (d: Date) => d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: timezone });
 
 export function Header({
@@ -56,19 +61,21 @@ export function Header({
         <a href="/app" className="pressable -ml-1 flex size-11 shrink-0 items-center justify-center rounded-full text-gray-1000 hover:bg-gray-100" aria-label="Dial">
           <Mark size={20} />
         </a>
-        <button onClick={onNow} className="pressable -ml-1 min-w-0 flex-1 rounded-md py-1 text-left" title="Jump to now (.)">
-          <AnimatePresence mode="wait" initial={false}>
-            <m.div key={state?.kind ?? "loading"} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={fade}>
-              <Status state={state} now={now} />
-            </m.div>
-          </AnimatePresence>
-        </button>
+        <div className="min-w-0 flex-1">
+          <Tooltip content={<>Jump to now <span className="opacity-60">·</span> .</>} className="flex max-w-full">
+            <button onClick={onNow} className="pressable -ml-1 block max-w-full rounded-md px-1 py-1 text-left">
+              <AnimatePresence mode="wait" initial={false}>
+                <m.div key={state?.kind ?? "loading"} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={fade}>
+                  <Status state={state} now={now} />
+                </m.div>
+              </AnimatePresence>
+            </button>
+          </Tooltip>
+        </div>
         <div className="flex shrink-0 items-center">
           {data?.demo && <span className="mr-1 hidden rounded-full border border-hairline px-2 py-0.5 text-label text-gray-900 sm:inline">Demo</span>}
           <SyncBadge sync={sync} queued={queued} onRetry={onRetry} />
-          <button onClick={onSearch} aria-label="Search tasks (/)" className="pressable flex size-11 items-center justify-center rounded-full text-gray-900 hover:bg-gray-100 hover:text-gray-1000">
-            <Search size={20} strokeWidth={1.5} />
-          </button>
+          <SearchTrigger onClick={onSearch} />
           <AccountMenu data={data} />
         </div>
       </div>
@@ -147,7 +154,7 @@ function SyncBadge({ sync, queued, onRetry }: { sync: SyncState; queued: number;
           exit={{ opacity: 0, scale: 0.9 }}
           transition={spring.ui}
           onClick={show === "error" ? onRetry : undefined}
-          title={sync.kind === "error" ? sync.message : undefined}
+          aria-label={sync.kind === "error" ? `Notion error: ${sync.message}. Retry` : undefined}
           role="status"
           className="pressable mr-1 flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full border border-hairline px-2.5 text-label text-gray-900"
         >
@@ -172,59 +179,85 @@ function SyncBadge({ sync, queued, onRetry }: { sync: SyncState; queued: number;
   );
 }
 
-function AccountMenu({ data }: { data: Snapshot | null }) {
-  const [open, setOpen] = useState(false);
-  const initial = (data?.user.name ?? "?").trim().charAt(0).toUpperCase();
+function SearchTrigger({ onClick }: { onClick: () => void }) {
+  // Unknown during SSR; filled in on the client without a hydration mismatch.
+  const mac = useSyncExternalStore(noopSubscribe, isMac, () => null);
   return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        aria-label="Account"
-        className="pressable flex size-11 items-center justify-center rounded-full hover:bg-gray-100"
-      >
-        {data?.user.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={data.user.image} alt="" className="size-7 rounded-full border border-hairline" />
-        ) : (
-          <span className="flex size-7 items-center justify-center rounded-full border border-hairline bg-gray-200 text-label font-medium text-gray-1000">{initial}</span>
-        )}
+    <>
+      {/* Phone: an icon. Desktop: a Vercel-style search field that opens the command menu. */}
+      <button onClick={onClick} aria-label="Search and commands" className="pressable flex size-11 items-center justify-center rounded-full text-gray-900 hover:bg-gray-100 hover:text-gray-1000 md:hidden">
+        <Search size={20} strokeWidth={1.5} />
       </button>
-      <AnimatePresence>
-        {open && (
-          <>
-            <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden="true" />
-            <m.div
-              role="menu"
-              initial={{ opacity: 0, scale: 0.96, y: -4 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: -4 }}
-              transition={spring.ui}
-              style={{ transformOrigin: "top right" }}
-              className="glass absolute right-0 top-12 z-20 w-60 overflow-hidden rounded-sheet border border-hairline p-1"
-            >
-              <div className="px-3 py-2">
-                <p className="truncate text-body text-gray-1000">{data?.user.name ?? "Signed in"}</p>
-                <p className="truncate text-small text-gray-900">{data?.user.workspace ?? "Notion"}</p>
-              </div>
-              <div className="hidden px-3 pb-2 pt-1 text-label text-gray-900 md:block">
-                <Kbd>n</Kbd> new · <Kbd>←</Kbd>
-                <Kbd>→</Kbd> class · <Kbd>.</Kbd> now · <Kbd>/</Kbd> search
-              </div>
-              <form action={signOutAction} onSubmit={clearSnapshotCache}>
-                <button role="menuitem" className="pressable flex h-11 w-full items-center gap-2 rounded-card px-3 text-body text-gray-1000 hover:bg-gray-100">
-                  <LogOut size={16} strokeWidth={1.5} /> Sign out
-                </button>
-              </form>
-            </m.div>
-          </>
-        )}
-      </AnimatePresence>
-    </div>
+      <button
+        onClick={onClick}
+        aria-label="Search and commands"
+        aria-keyshortcuts="Meta+K Control+K"
+        className="field pressable mr-1 hidden h-8 w-[200px] items-center gap-2 rounded-full pl-3 pr-1.5 text-small text-gray-900 hover:text-gray-1000 md:flex"
+      >
+        <Search size={14} strokeWidth={1.5} className="shrink-0" aria-hidden="true" />
+        <span className="flex-1 text-left">Search…</span>
+        <span className={`flex items-center gap-0.5 transition-opacity duration-150 ${mac === null ? "opacity-0" : "opacity-100"}`} aria-hidden="true">
+          <Kbd>{mac ? <Command size={11} strokeWidth={2} /> : "Ctrl"}</Kbd>
+          <Kbd>K</Kbd>
+        </span>
+      </button>
+    </>
   );
 }
 
-export function Kbd({ children }: { children: React.ReactNode }) {
-  return <kbd className="mx-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded border border-hairline-strong bg-gray-100 px-1 font-mono text-label text-gray-1000">{children}</kbd>;
+function AccountMenu({ data }: { data: Snapshot | null }) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const initial = (data?.user.name ?? "?").trim().charAt(0).toUpperCase();
+
+  useEffect(() => {
+    if (!open) return;
+    const id = requestAnimationFrame(() => menu.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(id);
+  }, [open]);
+
+  return (
+    <>
+      <Tooltip content="Account" align="end">
+        <button
+          ref={trigger}
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-haspopup="menu"
+          aria-label="Account"
+          className="pressable flex size-11 items-center justify-center rounded-full hover:bg-gray-100"
+        >
+          {data?.user.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={data.user.image} alt="" className="size-7 rounded-full border border-hairline" />
+          ) : (
+            <span className="flex size-7 items-center justify-center rounded-full border border-hairline bg-gray-200 text-label font-medium text-gray-1000">{initial}</span>
+          )}
+        </button>
+      </Tooltip>
+      <Popover open={open} onClose={() => setOpen(false)} anchor={trigger} align="end" width={240} label="Account">
+        <div ref={menu} role="menu" aria-label="Account" className="p-1">
+          <div className="flex items-center gap-3 px-3 py-2.5">
+            {data?.user.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={data.user.image} alt="" className="size-8 shrink-0 rounded-full border border-hairline" />
+            ) : (
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-hairline bg-gray-200 text-small font-medium text-gray-1000">{initial}</span>
+            )}
+            <span className="min-w-0">
+              <span className="block truncate text-body text-gray-1000">{data?.user.name ?? "Signed in"}</span>
+              <span className="block truncate text-small text-gray-900">{data?.user.workspace ?? "Notion"}</span>
+            </span>
+          </div>
+          <div className="mx-2 my-1 h-px bg-hairline" />
+          <form action={signOutAction} onSubmit={clearSnapshotCache}>
+            <button role="menuitem" className="pressable flex h-10 w-full items-center gap-2.5 rounded-card px-3 text-body text-gray-1000 outline-none hover:bg-gray-100 focus-visible:bg-gray-100 focus-visible:outline-none">
+              <LogOut size={16} strokeWidth={1.5} className="text-gray-900" /> Sign out
+            </button>
+          </form>
+        </div>
+      </Popover>
+    </>
+  );
 }
