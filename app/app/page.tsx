@@ -3,10 +3,14 @@ import { redirect } from "next/navigation";
 import { DialApp } from "@/components/dial-app";
 import { loadSnapshot, parseNowParam } from "@/lib/snapshot";
 
-// The shell (header, skeleton) prerenders statically. The first view's data
-// is read on the server and streams into the same response, so the task list
-// paints from HTML instead of waiting for JS + a client-side fetch. The
-// client then polls /api/data to stay fresh.
+// Rendered per request with the data already in it, so the task list paints
+// straight from HTML instead of waiting for JS and a client-side fetch.
+//
+// This is deliberately a blocking route rather than a static shell plus a
+// streamed <Suspense> boundary: Notion answers in a few hundred ms, and a
+// skeleton that flashes for that long and is then swapped in by script
+// paints later than just sending the finished page. The client polls
+// /api/data afterwards to stay fresh.
 export const instant = false;
 
 export default function AppPage({ searchParams }: PageProps<"/app">) {
